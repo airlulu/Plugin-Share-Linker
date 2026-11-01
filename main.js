@@ -1,4 +1,4 @@
-const { ButtonComponent, Notice, Plugin, PluginSettingTab, Setting } = require("obsidian");
+const { ButtonComponent, Modal, Notice, Plugin, PluginSettingTab, Setting } = require("obsidian");
 const fs = require("fs");
 const path = require("path");
 
@@ -121,6 +121,87 @@ const TEXT = {
     "status.exists": "已存在（未更新）",
     "status.conflict": "冲突",
     "status.error": "失败",
+    pickerOpen: "选择…",
+    pickerOpenTitle: "从 Obsidian 记录过的库里选择目标 Vault",
+    pickerBrowse: "浏览…",
+    pickerBrowseTitle: "用系统文件夹对话框选择目标 Vault",
+    pickerTitle: "选择目标 Vault",
+    pickerSubtitle: "来自 Obsidian 已记录的库",
+    pickerCurrentChip: "当前",
+    pickerOpenChip: "打开中",
+    pickerMissingChip: "目录不存在",
+    pickerCurrentVaultChip: "当前库，不可选",
+    pickerRegistryFallback: "没有读到库注册表，下面只显示设置里已保存的路径。",
+    pickerEmpty: "没有可选的库。",
+    pickerSelected: (path) => `已选择目标库：${path}`,
+    pickerCancel: "取消",
+    pickerBrowseUnsupported: "当前环境不支持系统文件夹对话框，请手动输入路径，或从已知库里选择。",
+    pickerBrowseFailed: (message) => `打开系统文件夹对话框失败：${message}`,
+    healthTitle: "目标库链接健康",
+    healthDetect: "检测链接",
+    healthDetectTitle: "扫描目标库 plugins / themes / snippets 下的软链接，找出失效与源库不可达的项",
+    healthHint: "检测是手动的：点上面的按钮才会访问目标库，避免目标库失联时卡住设置页。",
+    healthNotScanned: "尚未检测。点「检测链接」扫描目标库 .obsidian 下的 plugins / themes / snippets。",
+    healthChecking: "正在检测…",
+    healthBadge: (broken, unreachable) =>
+      unreachable > 0 ? `${broken} 个失效 · ${unreachable} 个不可达` : `${broken} 个失效`,
+    healthBadgeNone: "未发现失效链接",
+    healthSummary: (total, links, healthy, broken, unreachable, copies) =>
+      `共 ${total} 项：${links} 个链接（${healthy} 健康、${broken} 失效、${unreachable} 源库不可达），${copies} 个实体副本。`,
+    healthGroupTitle: (label, count) => `${label}（${count}）`,
+    healthPointsTo: (target) => `指向 ${target}`,
+    healthUnreachableHint: (root) => `先挂载源库（${root}）再检测。`,
+    healthRebuild: "重建链接",
+    healthRebuildTitle: "把链接重新指向当前库里的同名资源",
+    healthDelete: "删除链接",
+    healthDeleteTitle: "删除目标库里的这个失效链接，并清理目标库启用记录里的对应项",
+    healthRebuildAll: "全部重建",
+    healthRebuildAllTitle: "重建所有「当前库有同名资源」的失效链接",
+    healthDeleteAll: "全部删除",
+    healthDeleteAllTitle: "删除所有「当前库没有同名资源」的失效链接",
+    healthRebuilt: (name, from, to) => `${name}：已重建链接（原指向 ${from} → 新指向 ${to}）`,
+    healthRebuiltLine: (from, to) => `原指向 ${from} → 新指向 ${to}`,
+    healthRebuildFailed: (name, message) => `${name}：重建失败——${message}`,
+    healthRebuildRestored: "旧链接已恢复。",
+    healthRebuildNotRestored: "旧链接未能恢复，请检查目标位置。",
+    healthDeleted: (name) => `已删除链接：${name}`,
+    healthDeletedWithConfig: (name, config) => `已删除链接：${name}；${config}`,
+    healthConfigUnchanged: "目标库启用记录没有需要清理的条目。",
+    healthConfigRemovedPlugins: (count) => `从 community-plugins.json 移除 ${count} 个插件 ID`,
+    healthConfigRemovedSnippets: (count) => `从 enabledCssSnippets 移除 ${count} 个片段名`,
+    healthConfigClearedTheme: (theme) => `cssTheme 已清空（原为 ${theme}）`,
+    healthConfigFailed: (message) => `链接已删除，但清理目标库配置失败：${message}`,
+    healthConfigJoined: (parts) => parts.join("，"),
+    healthNoticeFound: (broken, unreachable) => `检测完成：${broken} 个失效、${unreachable} 个源库不可达。`,
+    healthNoticeClear: "检测完成：未发现失效链接。",
+    healthFailed: (message) => `链接检测失败：${message}`,
+    healthDeleteFailed: (message) => `删除链接失败：${message}`,
+    healthNotLink: (path) => `${path} 已经不是链接，已跳过。`,
+    healthLinkHealthy: "这个链接现在指向有效目标，已跳过（重新检测即可刷新状态）。",
+    healthNoSource: (name) => `当前库没有同名资源，无法重建：${name}`,
+    healthBulkConfirmRebuild: "确认重建以下链接？",
+    healthBulkConfirmDelete: "确认删除以下链接？",
+    healthConfirmRebuildWarning:
+      "重建会先删掉旧链接，再创建指向当前库同名资源的新链接（绝对路径）。若创建失败会尝试恢复旧链接。",
+    healthConfirmDeleteWarning:
+      "删除会移除目标库里的链接本身，并清理 community-plugins.json、appearance.json（enabledCssSnippets / cssTheme）里对应的条目；物理资源不会被删除。写前会备份为 .bak。",
+    healthConfirmOk: "确认",
+    healthConfirmCancel: "取消",
+    healthBulkRebuildDone: (ok, failed) => `全部重建完成：成功 ${ok}，失败 ${failed}。`,
+    healthBulkDeleteDone: (ok, failed) => `全部删除完成：成功 ${ok}，失败 ${failed}。`,
+    pairHeadSource: "当前 Vault",
+    pairHeadTarget: "目标库",
+    pairPlaceholderSource: "当前库无同名项",
+    pairLegendTitle: "目标库状态：",
+    targetOnlySuffix: (count) => `（另有 ${count} 项只在目标库）`,
+    "targetState.linked": "已链接",
+    "targetState.copy": "已存在副本",
+    "targetState.conflict": "冲突",
+    "targetState.broken": "链接失效",
+    "targetState.unreachable": "源库不可达",
+    "targetState.unshared": "未共享",
+    "targetState.unknown": "未检测",
+    "targetState.copyHint": "目标库里的同名项是实体副本，不来自当前库。",
   },
   en: {
     commandOpen: "Open share panel",
@@ -223,6 +304,87 @@ const TEXT = {
     "status.exists": "Exists (not updated)",
     "status.conflict": "Conflict",
     "status.error": "Failed",
+    pickerOpen: "Choose…",
+    pickerOpenTitle: "Pick the target vault from the vaults Obsidian knows",
+    pickerBrowse: "Browse…",
+    pickerBrowseTitle: "Pick the target vault with the system folder dialog",
+    pickerTitle: "Choose target vault",
+    pickerSubtitle: "From the vaults Obsidian has recorded",
+    pickerCurrentChip: "Current",
+    pickerOpenChip: "Open",
+    pickerMissingChip: "Folder missing",
+    pickerCurrentVaultChip: "Current vault — not selectable",
+    pickerRegistryFallback: "No vault registry found; only the saved path is shown below.",
+    pickerEmpty: "No vaults to choose from.",
+    pickerSelected: (path) => `Target vault selected: ${path}`,
+    pickerCancel: "Cancel",
+    pickerBrowseUnsupported: "The system folder dialog is unavailable here; type the path or pick a known vault.",
+    pickerBrowseFailed: (message) => `Could not open the system folder dialog: ${message}`,
+    healthTitle: "Target link health",
+    healthDetect: "Check links",
+    healthDetectTitle: "Scan symlinks under the target vault's plugins / themes / snippets for broken and unreachable ones",
+    healthHint: "Detection is manual: the target vault is only touched when you press the button, so a missing drive cannot stall the settings page.",
+    healthNotScanned: "Not checked yet. Press Check links to scan plugins / themes / snippets under the target vault's .obsidian.",
+    healthChecking: "Checking…",
+    healthBadge: (broken, unreachable) =>
+      unreachable > 0 ? `${broken} broken · ${unreachable} unreachable` : `${broken} broken`,
+    healthBadgeNone: "No broken links",
+    healthSummary: (total, links, healthy, broken, unreachable, copies) =>
+      `${total} items: ${links} links (${healthy} healthy, ${broken} broken, ${unreachable} unreachable), ${copies} physical copies.`,
+    healthGroupTitle: (label, count) => `${label} (${count})`,
+    healthPointsTo: (target) => `Points to ${target}`,
+    healthUnreachableHint: (root) => `Mount the source vault (${root}) and check again.`,
+    healthRebuild: "Rebuild link",
+    healthRebuildTitle: "Point the link back at the same-named item in the current vault",
+    healthDelete: "Delete link",
+    healthDeleteTitle: "Delete this broken link and remove its entry from the target vault's enable records",
+    healthRebuildAll: "Rebuild all",
+    healthRebuildAllTitle: "Rebuild every broken link that has a same-named item in the current vault",
+    healthDeleteAll: "Delete all",
+    healthDeleteAllTitle: "Delete every broken link that has no same-named item in the current vault",
+    healthRebuilt: (name, from, to) => `${name}: link rebuilt (was ${from} → now ${to})`,
+    healthRebuiltLine: (from, to) => `Was ${from} → now ${to}`,
+    healthRebuildFailed: (name, message) => `${name}: rebuild failed — ${message}`,
+    healthRebuildRestored: "The old link was restored.",
+    healthRebuildNotRestored: "The old link could not be restored; check the target location.",
+    healthDeleted: (name) => `Deleted link: ${name}`,
+    healthDeletedWithConfig: (name, config) => `Deleted link: ${name}; ${config}`,
+    healthConfigUnchanged: "No enable-record entries needed cleaning.",
+    healthConfigRemovedPlugins: (count) => `removed ${count} plugin ID(s) from community-plugins.json`,
+    healthConfigRemovedSnippets: (count) => `removed ${count} snippet name(s) from enabledCssSnippets`,
+    healthConfigClearedTheme: (theme) => `cleared cssTheme (was ${theme})`,
+    healthConfigFailed: (message) => `The link was deleted, but cleaning the target config failed: ${message}`,
+    healthConfigJoined: (parts) => parts.join(", "),
+    healthNoticeFound: (broken, unreachable) => `Check complete: ${broken} broken, ${unreachable} unreachable.`,
+    healthNoticeClear: "Check complete: no broken links.",
+    healthFailed: (message) => `Link check failed: ${message}`,
+    healthDeleteFailed: (message) => `Could not delete the link: ${message}`,
+    healthNotLink: (path) => `${path} is no longer a link; skipped.`,
+    healthLinkHealthy: "This link now points at a valid target; skipped (run the check again to refresh the state).",
+    healthNoSource: (name) => `No same-named item in the current vault to rebuild from: ${name}`,
+    healthBulkConfirmRebuild: "Rebuild these links?",
+    healthBulkConfirmDelete: "Delete these links?",
+    healthConfirmRebuildWarning:
+      "Rebuilding deletes the old link first, then creates a new one pointing at the same-named item in the current vault (absolute path). If creating it fails, the old link is restored.",
+    healthConfirmDeleteWarning:
+      "Deleting removes the link itself and cleans the matching entries in community-plugins.json and appearance.json (enabledCssSnippets / cssTheme); physical resources are not touched. The file is backed up to .bak first.",
+    healthConfirmOk: "Confirm",
+    healthConfirmCancel: "Cancel",
+    healthBulkRebuildDone: (ok, failed) => `Rebuild all done: ${ok} succeeded, ${failed} failed.`,
+    healthBulkDeleteDone: (ok, failed) => `Delete all done: ${ok} succeeded, ${failed} failed.`,
+    pairHeadSource: "Current Vault",
+    pairHeadTarget: "Target",
+    pairPlaceholderSource: "No same-named item here",
+    pairLegendTitle: "Target state:",
+    targetOnlySuffix: (count) => ` (${count} more only in the target)`,
+    "targetState.linked": "Linked",
+    "targetState.copy": "Physical copy",
+    "targetState.conflict": "Conflict",
+    "targetState.broken": "Broken link",
+    "targetState.unreachable": "Source unreachable",
+    "targetState.unshared": "Not shared",
+    "targetState.unknown": "Not checked",
+    "targetState.copyHint": "The same-named item in the target is a physical copy, not from this vault.",
   },
 };
 
@@ -539,6 +701,173 @@ module.exports = class PluginShareLinker extends Plugin {
     return { target, writable, elapsedMs };
   }
 
+  async listKnownVaults() {
+    const currentVaultPath = this.getCurrentVaultPath();
+    const savedPath = normalizePathInput(this.settings.targetVaultPath);
+    const registry = await readVaultRegistry();
+    const vaults = [];
+    const seen = new Set();
+
+    const addVault = async (rawPath, meta) => {
+      const normalized = normalizePathInput(rawPath);
+      if (!normalized) return;
+      const resolved = path.resolve(normalized);
+      if (seen.has(resolved)) return;
+      seen.add(resolved);
+
+      let exists = false;
+      try {
+        const stats = await fs.promises.stat(resolved);
+        exists = !!stats && stats.isDirectory();
+      } catch (error) {
+        exists = false;
+      }
+
+      vaults.push({
+        path: normalized,
+        exists,
+        isCurrent: !!currentVaultPath && path.resolve(currentVaultPath) === resolved,
+        isSaved: !!savedPath && path.resolve(savedPath) === resolved,
+        isOpen: !!meta && !!meta.open,
+        lastOpenedAt: meta && typeof meta.ts === "number" ? meta.ts : 0,
+      });
+    };
+
+    if (savedPath) await addVault(savedPath, null);
+    for (const entry of registry.vaults) await addVault(entry.path, entry);
+
+    vaults.sort((left, right) => {
+      if (left.isSaved !== right.isSaved) return left.isSaved ? -1 : 1;
+      if (left.lastOpenedAt !== right.lastOpenedAt) return right.lastOpenedAt - left.lastOpenedAt;
+      return left.path.localeCompare(right.path);
+    });
+
+    this.debug("vaults", `known=${vaults.length} registry=${registry.ok ? "ok" : "error"}`);
+    return { ok: registry.ok, source: registry.source, error: registry.error, vaults };
+  }
+
+  async browseTargetVault() {
+    const electron = safeRequire("electron");
+    const remote = (electron && (electron.remote || safeRequire("@electron/remote"))) || null;
+    const dialog = remote && remote.dialog;
+    if (!dialog || typeof dialog.showOpenDialog !== "function") {
+      throw new Error(this.t("pickerBrowseUnsupported"));
+    }
+
+    const result = await dialog.showOpenDialog({
+      title: this.t("pickerBrowseTitle"),
+      properties: ["openDirectory", "dontAddToRecent"],
+    });
+    if (!result || result.canceled || !Array.isArray(result.filePaths) || result.filePaths.length === 0) {
+      return "";
+    }
+    return result.filePaths[0];
+  }
+
+  async scanTargetVault(targetVaultPath) {
+    const startedAt = Date.now();
+    this.debug("health", "scan start");
+    const target = await this.resolveTargetVault(targetVaultPath);
+    const scanned = await runWithTimeout(
+      () => scanTargetConfigDirs(target.configDir),
+      45 * 1000,
+      this.t("actionTimeout", 45)
+    );
+    const elapsedMs = Date.now() - startedAt;
+    this.debug(
+      "health",
+      `scan done links=${scanned.summary.totalLinks} broken=${scanned.summary.broken} unreachable=${scanned.summary.unreachable} copies=${scanned.summary.copies} elapsed=${elapsedMs}ms`
+    );
+    return {
+      target,
+      kinds: scanned.kinds,
+      summary: scanned.summary,
+      scannedAt: Date.now(),
+      elapsedMs,
+    };
+  }
+
+  async findSameNameSource(kind, name) {
+    if (kind === "plugins") {
+      const match = (await this.listPlugins()).find((plugin) => plugin.folderName === name);
+      return match ? { name: match.folderName, sourcePath: match.sourcePath, linkType: "dir" } : null;
+    }
+    if (kind === "themes") {
+      const match = (await this.listThemes()).find((theme) => theme.folderName === name);
+      return match ? { name: match.folderName, sourcePath: match.sourcePath, linkType: "dir" } : null;
+    }
+    if (kind === "snippets") {
+      const match = (await this.listSnippets()).find((snippet) => snippet.fileName === name);
+      return match ? { name: match.fileName, sourcePath: match.sourcePath, linkType: "file" } : null;
+    }
+    return null;
+  }
+
+  async rebuildTargetLink(kind, name, targetVaultPath) {
+    const target = await this.resolveTargetVault(targetVaultPath);
+    const entryPath = path.join(target.configDir, kind, name);
+    const existing = await fs.promises.lstat(entryPath).catch(() => null);
+    if (!existing || !existing.isSymbolicLink()) {
+      throw new Error(this.t("healthNotLink", entryPath));
+    }
+    const validTarget = await fs.promises.stat(entryPath).catch(() => null);
+    if (validTarget) throw new Error(this.t("healthLinkHealthy"));
+
+    const source = await this.findSameNameSource(kind, name);
+    if (!source) throw new Error(this.t("healthNoSource", name));
+
+    const outcome = await rebuildLink(
+      entryPath,
+      source.sourcePath,
+      source.linkType,
+      this.t.bind(this),
+      this.debug.bind(this)
+    );
+    this.debug("health", `rebuild ${kind}/${name} ${outcome.status} ${outcome.oldTarget} -> ${outcome.newTarget}`);
+    return { kind, name, source: source.sourcePath, ...outcome };
+  }
+
+  async deleteTargetLink(kind, name, targetVaultPath) {
+    const target = await this.resolveTargetVault(targetVaultPath);
+    const entryPath = path.join(target.configDir, kind, name);
+    const existing = await fs.promises.lstat(entryPath).catch(() => null);
+    if (!existing || !existing.isSymbolicLink()) {
+      throw new Error(this.t("healthNotLink", entryPath));
+    }
+    const validTarget = await fs.promises.stat(entryPath).catch(() => null);
+    if (validTarget) throw new Error(this.t("healthLinkHealthy"));
+
+    const linkTarget = await fs.promises.readlink(entryPath).catch(() => null);
+    try {
+      await fs.promises.rm(entryPath, { force: true });
+    } catch (error) {
+      throw new Error(this.t("healthDeleteFailed", error.message));
+    }
+
+    const removed = { pluginIds: [], snippetNames: [], themeNames: [] };
+    if (kind === "plugins") removed.pluginIds.push(name);
+    if (kind === "themes") removed.themeNames.push(name);
+    if (kind === "snippets") removed.snippetNames.push(name.replace(/\.css$/i, ""));
+
+    let config = null;
+    try {
+      config = await cleanEnabledRecords(target.configDir, removed, this.t.bind(this), this.debug.bind(this));
+    } catch (error) {
+      this.debug("health", `clean records failed: ${error.message}`);
+      config = {
+        error: error.message,
+        pluginsRemoved: [],
+        snippetsRemoved: [],
+        themeCleared: null,
+        backups: [],
+        warnings: [],
+      };
+    }
+
+    this.debug("health", `delete ${kind}/${name} target=${linkTarget}`);
+    return { kind, name, linkTarget, config };
+  }
+
   async sharePlugins(pluginIds, targetVaultPath, mode) {
     const target = await this.resolveTargetVault(targetVaultPath);
     const selected = new Set(pluginIds);
@@ -717,6 +1046,10 @@ class PluginShareLinkerSettingTab extends PluginSettingTab {
     this.notes = [];
     this.themeActionSeen = false;
     this.busy = false;
+    this.targetInventory = null;
+    this.healthBusy = false;
+    this.healthMessage = "";
+    this.healthError = "";
   }
 
   async display() {
@@ -753,17 +1086,30 @@ class PluginShareLinkerSettingTab extends PluginSettingTab {
           .onChange(async (value) => {
             this.plugin.settings.targetVaultPath = value;
             await this.plugin.saveSettings();
+            this.invalidateTargetInventory();
           });
         text.inputEl.addClass("plugin-share-linker-path-input");
       });
     containerEl.createDiv("plugin-share-linker-hint").setText(t("targetVaultHint"));
 
     const targetToolsEl = containerEl.createDiv("plugin-share-linker-target-tools");
+
+    const pickButton = new ButtonComponent(targetToolsEl)
+      .setIcon("folder-search")
+      .onClick(() => this.openVaultPicker());
+    setToolbarButtonLabel(pickButton, t("pickerOpen"), t("pickerOpenTitle"));
+
+    const browseButton = new ButtonComponent(targetToolsEl)
+      .setIcon("folder-open")
+      .onClick(() => this.browseVault());
+    setToolbarButtonLabel(browseButton, t("pickerBrowse"), t("pickerBrowseTitle"));
+
     const checkButton = new ButtonComponent(targetToolsEl)
       .setIcon("search")
       .onClick(() => this.checkTargetPath());
     setToolbarButtonLabel(checkButton, t("checkTarget"), t("checkTargetTitle"));
 
+    this.buildLinkHealthSection(containerEl);
     this.buildPluginsSection(containerEl);
     this.buildThemesSection(containerEl);
     this.buildSnippetsSection(containerEl);
@@ -779,6 +1125,8 @@ class PluginShareLinkerSettingTab extends PluginSettingTab {
     this.pluginsCountEl = section.bodyEl.createDiv("plugin-share-linker-count");
     this.pluginsToolbarEl = section.bodyEl.createDiv("plugin-share-linker-toolbar");
     this.pluginsPaginationEl = section.bodyEl.createDiv("plugin-share-linker-pagination");
+    this.renderStatusLegend(section.bodyEl);
+    this.createPairHead(section.bodyEl);
     this.pluginsListEl = section.bodyEl.createDiv("plugin-share-linker-list");
     section.bodyEl.createDiv("plugin-share-linker-hint").setText(t("pluginEnableHint"));
 
@@ -815,6 +1163,7 @@ class PluginShareLinkerSettingTab extends PluginSettingTab {
     const section = createSection(containerEl, t("sectionThemes"));
     this.themesCountEl = section.bodyEl.createDiv("plugin-share-linker-count");
     this.themesToolbarEl = section.bodyEl.createDiv("plugin-share-linker-toolbar");
+    this.createPairHead(section.bodyEl);
     this.themesListEl = section.bodyEl.createDiv("plugin-share-linker-list");
 
     const radioEl = section.bodyEl.createDiv("plugin-share-linker-radio");
@@ -830,10 +1179,73 @@ class PluginShareLinkerSettingTab extends PluginSettingTab {
     const section = createSection(containerEl, t("sectionSnippets"));
     this.snippetsCountEl = section.bodyEl.createDiv("plugin-share-linker-count");
     this.snippetsToolbarEl = section.bodyEl.createDiv("plugin-share-linker-toolbar");
+    this.createPairHead(section.bodyEl);
     this.snippetsListEl = section.bodyEl.createDiv("plugin-share-linker-list");
     section.bodyEl.createDiv("plugin-share-linker-hint").setText(t("snippetEnableHint"));
 
     this.addActionButtons(this.snippetsToolbarEl, "snippets");
+  }
+
+  createPairHead(containerEl) {
+    const t = this.plugin.t.bind(this.plugin);
+    const headEl = containerEl.createDiv("plugin-share-linker-pair-head");
+    headEl.createSpan({ cls: "plugin-share-linker-pair-head-left", text: t("pairHeadSource") });
+    headEl.createSpan({ cls: "plugin-share-linker-pair-head-right", text: t("pairHeadTarget") });
+    return headEl;
+  }
+
+  renderTargetCell(pairEl, row) {
+    const t = this.plugin.t.bind(this.plugin);
+    const cellEl = pairEl.createDiv("plugin-share-linker-pair-right");
+    const state = this.targetInventory ? describeTargetRow(row) : { key: "unknown", detail: "" };
+    cellEl.createSpan({
+      cls: `plugin-share-linker-target-chip plugin-share-linker-target-${state.key}`,
+      text: t(`targetState.${state.key}`),
+    });
+
+    if (row.target && row.target.rebuiltFrom) {
+      cellEl
+        .createDiv("plugin-share-linker-target-path")
+        .setText(t("healthRebuiltLine", row.target.rebuiltFrom, row.target.absoluteTarget || ""));
+    } else if (state.detail) {
+      cellEl.createDiv("plugin-share-linker-target-path").createEl("code", { text: t("healthPointsTo", state.detail) });
+    } else if (row.target && row.target.status === "copy") {
+      cellEl.createDiv("plugin-share-linker-target-path").setText(t("targetState.copyHint"));
+    }
+
+    return cellEl;
+  }
+
+  renderStatusLegend(containerEl) {
+    const t = this.plugin.t.bind(this.plugin);
+    const legendEl = containerEl.createDiv("plugin-share-linker-legend");
+    legendEl.createSpan({ cls: "plugin-share-linker-legend-title", text: t("pairLegendTitle") });
+    for (const key of ["linked", "copy", "conflict", "broken", "unreachable", "unshared", "unknown"]) {
+      legendEl.createSpan({
+        cls: `plugin-share-linker-target-chip plugin-share-linker-target-${key}`,
+        text: t(`targetState.${key}`),
+      });
+    }
+    return legendEl;
+  }
+
+  buildLinkHealthSection(containerEl) {
+    const t = this.plugin.t.bind(this.plugin);
+    const section = createSection(containerEl, t("healthTitle"));
+    const headEl = section.bodyEl.createDiv("plugin-share-linker-health-head");
+    this.healthBadgeEl = headEl.createSpan({ cls: "plugin-share-linker-health-badge" });
+    const detectButton = new ButtonComponent(headEl)
+      .setIcon("activity")
+      .onClick(() => this.checkTargetLinks());
+    setToolbarButtonLabel(detectButton, t("healthDetect"), t("healthDetectTitle"));
+    this.detectLinksButton = detectButton;
+    this.healthStatusEl = headEl.createSpan({ cls: "plugin-share-linker-health-status" });
+
+    section.bodyEl.createDiv("plugin-share-linker-hint").setText(t("healthHint"));
+    this.healthSummaryEl = section.bodyEl.createDiv("plugin-share-linker-health-summary");
+    this.healthBulkEl = section.bodyEl.createDiv("plugin-share-linker-health-bulk");
+    this.healthResultEl = section.bodyEl.createDiv("plugin-share-linker-health-result");
+    this.renderLinkHealth();
   }
 
   addActionButtons(containerEl, kind) {
@@ -878,6 +1290,7 @@ class PluginShareLinkerSettingTab extends PluginSettingTab {
     this.renderPlugins();
     this.renderThemes();
     this.renderSnippets();
+    this.renderLinkHealth();
     this.renderResults();
   }
 
@@ -938,38 +1351,71 @@ class PluginShareLinkerSettingTab extends PluginSettingTab {
     linesEl.createDiv("plugin-share-linker-restart-hint").setText(t("targetCheckHint"));
   }
 
+  getSourceRows(kind) {
+    if (kind === "plugins") return this.plugins.map((plugin) => ({ name: plugin.folderName, source: plugin }));
+    if (kind === "themes") return this.themes.map((theme) => ({ name: theme.folderName, source: theme }));
+    return this.snippets.map((snippet) => ({ name: snippet.fileName, source: snippet }));
+  }
+
+  getMergedRows(kind) {
+    const entries =
+      this.targetInventory && this.targetInventory.kinds && this.targetInventory.kinds[kind]
+        ? this.targetInventory.kinds[kind]
+        : [];
+    return mergeDiffRows(kind, this.getSourceRows(kind), entries);
+  }
+
+  hasSameNameSource(kind, name) {
+    if (kind === "plugins") return this.plugins.some((plugin) => plugin.folderName === name);
+    if (kind === "themes") return this.themes.some((theme) => theme.folderName === name);
+    return this.snippets.some((snippet) => snippet.fileName === name);
+  }
+
   renderPlugins() {
     if (!this.pluginsListEl || !this.pluginsCountEl) return;
 
     const t = this.plugin.t.bind(this.plugin);
     const selected = new Set(this.plugin.settings.selectedPluginIds);
     const enabled = new Set(this.plugin.settings.enabledPluginIds);
+    const rows = this.getMergedRows("plugins");
+    const targetOnlyCount = rows.filter((row) => !row.source).length;
     const pageSize = normalizePageSize(this.plugin.settings.pageSize);
-    const totalPages = Math.max(1, Math.ceil(this.plugins.length / pageSize));
+    const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
     this.currentPage = clamp(this.currentPage, 1, totalPages);
     const startIndex = (this.currentPage - 1) * pageSize;
-    const pagePlugins = this.plugins.slice(startIndex, startIndex + pageSize);
+    const pageRows = rows.slice(startIndex, startIndex + pageSize);
 
     this.pluginsCountEl.setText(
-      t("pluginsCount", this.plugins.length, selected.size, this.currentPage, totalPages)
+      t("pluginsCount", this.plugins.length, selected.size, this.currentPage, totalPages) +
+        (targetOnlyCount > 0 ? t("targetOnlySuffix", targetOnlyCount) : "")
     );
     this.pluginsListEl.empty();
     this.renderPagination(totalPages, pageSize);
 
-    if (this.plugins.length === 0) {
+    if (rows.length === 0) {
       this.pluginsListEl.createDiv("plugin-share-linker-empty").setText(t("emptyPlugins"));
       return;
     }
 
-    for (const plugin of pagePlugins) {
-      this.renderPluginRow(plugin, selected, enabled);
+    for (const row of pageRows) {
+      this.renderPluginPair(row, selected, enabled);
     }
   }
 
-  renderPluginRow(plugin, selected, enabled) {
+  renderPluginPair(row, selected, enabled) {
     const t = this.plugin.t.bind(this.plugin);
-    const rowEl = this.pluginsListEl.createDiv("plugin-share-linker-row");
-    const checksEl = rowEl.createDiv("plugin-share-linker-checks");
+    const pairEl = this.pluginsListEl.createDiv("plugin-share-linker-pair");
+    const leftEl = pairEl.createDiv("plugin-share-linker-pair-left");
+
+    if (!row.source) {
+      leftEl.addClass("is-empty");
+      leftEl.createDiv("plugin-share-linker-pair-placeholder").setText(t("pairPlaceholderSource"));
+      this.renderTargetCell(pairEl, row);
+      return;
+    }
+
+    const plugin = row.source;
+    const checksEl = leftEl.createDiv("plugin-share-linker-checks");
 
     const shareLabel = checksEl.createEl("label", { cls: "plugin-share-linker-check" });
     const shareBox = shareLabel.createEl("input", { type: "checkbox" });
@@ -1011,7 +1457,7 @@ class PluginShareLinkerSettingTab extends PluginSettingTab {
       this.renderPlugins();
     });
 
-    const contentEl = rowEl.createDiv("plugin-share-linker-row-content");
+    const contentEl = leftEl.createDiv("plugin-share-linker-row-content");
     const titleEl = contentEl.createDiv("plugin-share-linker-row-title");
     titleEl.createSpan({ text: plugin.name });
     titleEl.createEl("code", { text: plugin.folderName });
@@ -1022,6 +1468,8 @@ class PluginShareLinkerSettingTab extends PluginSettingTab {
     if (plugin.description) {
       contentEl.createDiv("plugin-share-linker-row-desc").setText(plugin.description);
     }
+
+    this.renderTargetCell(pairEl, row);
   }
 
   renderPagination(totalPages, pageSize) {
@@ -1073,49 +1521,71 @@ class PluginShareLinkerSettingTab extends PluginSettingTab {
     if (!this.themesListEl || !this.themesCountEl) return;
 
     const t = this.plugin.t.bind(this.plugin);
-    let selected = new Set(this.plugin.settings.selectedThemeNames);
+    const selected = new Set(this.plugin.settings.selectedThemeNames);
+    const rows = this.getMergedRows("themes");
+    const targetOnlyCount = rows.filter((row) => !row.source).length;
 
     if (this.plugin.settings.targetThemeName && !selected.has(this.plugin.settings.targetThemeName)) {
       this.plugin.settings.targetThemeName = "";
       this.plugin.saveSettings();
     }
 
-    this.themesCountEl.setText(t("themesCount", this.themes.length, selected.size));
+    this.themesCountEl.setText(
+      t("themesCount", this.themes.length, selected.size) +
+        (targetOnlyCount > 0 ? t("targetOnlySuffix", targetOnlyCount) : "")
+    );
     this.themesListEl.empty();
 
-    if (this.themes.length === 0) {
+    if (rows.length === 0) {
       this.themesListEl.createDiv("plugin-share-linker-empty").setText(t("emptyThemes"));
     } else {
-      for (const theme of this.themes) {
-        const rowEl = this.themesListEl.createDiv("plugin-share-linker-row");
-        const checkLabel = rowEl.createEl("label", { cls: "plugin-share-linker-check" });
-        const checkBox = checkLabel.createEl("input", { type: "checkbox" });
-        checkLabel.createSpan({ text: t("share") });
-        checkBox.checked = selected.has(theme.folderName);
-        checkBox.addEventListener("change", async () => {
-          const nextSelected = new Set(this.plugin.settings.selectedThemeNames);
-          if (checkBox.checked) {
-            nextSelected.add(theme.folderName);
-          } else {
-            nextSelected.delete(theme.folderName);
-            if (this.plugin.settings.targetThemeName === theme.folderName) {
-              this.plugin.settings.targetThemeName = "";
-            }
-          }
-          this.plugin.settings.selectedThemeNames = Array.from(nextSelected);
-          await this.plugin.saveSettings();
-          this.renderThemes();
-        });
-
-        const contentEl = rowEl.createDiv("plugin-share-linker-row-content");
-        const titleEl = contentEl.createDiv("plugin-share-linker-row-title");
-        titleEl.createSpan({ text: theme.name });
-        const metaText = theme.version ? `v${theme.version}` : t("noVersion");
-        contentEl.createDiv("plugin-share-linker-row-meta").setText(metaText);
+      for (const row of rows) {
+        this.renderThemePair(row, selected);
       }
     }
 
     this.renderThemeRadio();
+  }
+
+  renderThemePair(row, selected) {
+    const t = this.plugin.t.bind(this.plugin);
+    const pairEl = this.themesListEl.createDiv("plugin-share-linker-pair");
+    const leftEl = pairEl.createDiv("plugin-share-linker-pair-left");
+
+    if (!row.source) {
+      leftEl.addClass("is-empty");
+      leftEl.createDiv("plugin-share-linker-pair-placeholder").setText(t("pairPlaceholderSource"));
+      this.renderTargetCell(pairEl, row);
+      return;
+    }
+
+    const theme = row.source;
+    const checkLabel = leftEl.createEl("label", { cls: "plugin-share-linker-check" });
+    const checkBox = checkLabel.createEl("input", { type: "checkbox" });
+    checkLabel.createSpan({ text: t("share") });
+    checkBox.checked = selected.has(theme.folderName);
+    checkBox.addEventListener("change", async () => {
+      const nextSelected = new Set(this.plugin.settings.selectedThemeNames);
+      if (checkBox.checked) {
+        nextSelected.add(theme.folderName);
+      } else {
+        nextSelected.delete(theme.folderName);
+        if (this.plugin.settings.targetThemeName === theme.folderName) {
+          this.plugin.settings.targetThemeName = "";
+        }
+      }
+      this.plugin.settings.selectedThemeNames = Array.from(nextSelected);
+      await this.plugin.saveSettings();
+      this.renderThemes();
+    });
+
+    const contentEl = leftEl.createDiv("plugin-share-linker-row-content");
+    const titleEl = contentEl.createDiv("plugin-share-linker-row-title");
+    titleEl.createSpan({ text: theme.name });
+    const metaText = theme.version ? `v${theme.version}` : t("noVersion");
+    contentEl.createDiv("plugin-share-linker-row-meta").setText(metaText);
+
+    this.renderTargetCell(pairEl, row);
   }
 
   renderThemeRadio() {
@@ -1162,63 +1632,544 @@ class PluginShareLinkerSettingTab extends PluginSettingTab {
     const t = this.plugin.t.bind(this.plugin);
     const selected = new Set(this.plugin.settings.selectedSnippetNames);
     const enabled = new Set(this.plugin.settings.enabledSnippetNames);
+    const rows = this.getMergedRows("snippets");
+    const targetOnlyCount = rows.filter((row) => !row.source).length;
 
-    this.snippetsCountEl.setText(t("snippetsCount", this.snippets.length, selected.size));
+    this.snippetsCountEl.setText(
+      t("snippetsCount", this.snippets.length, selected.size) +
+        (targetOnlyCount > 0 ? t("targetOnlySuffix", targetOnlyCount) : "")
+    );
     this.snippetsListEl.empty();
 
-    if (this.snippets.length === 0) {
+    if (rows.length === 0) {
       this.snippetsListEl.createDiv("plugin-share-linker-empty").setText(t("emptySnippets"));
       return;
     }
 
-    for (const snippet of this.snippets) {
-      const rowEl = this.snippetsListEl.createDiv("plugin-share-linker-row");
-      const checksEl = rowEl.createDiv("plugin-share-linker-checks");
-
-      const shareLabel = checksEl.createEl("label", { cls: "plugin-share-linker-check" });
-      const shareBox = shareLabel.createEl("input", { type: "checkbox" });
-      shareLabel.createSpan({ text: t("share") });
-
-      const enableLabel = checksEl.createEl("label", { cls: "plugin-share-linker-check" });
-      const enableBox = enableLabel.createEl("input", { type: "checkbox" });
-      enableLabel.createSpan({ text: t("enable") });
-
-      shareBox.checked = selected.has(snippet.name);
-      enableBox.checked = enabled.has(snippet.name);
-      enableBox.disabled = !shareBox.checked;
-
-      shareBox.addEventListener("change", async () => {
-        const nextSelected = new Set(this.plugin.settings.selectedSnippetNames);
-        const nextEnabled = new Set(this.plugin.settings.enabledSnippetNames);
-        if (shareBox.checked) {
-          nextSelected.add(snippet.name);
-          nextEnabled.add(snippet.name);
-        } else {
-          nextSelected.delete(snippet.name);
-          nextEnabled.delete(snippet.name);
-        }
-        this.plugin.settings.selectedSnippetNames = Array.from(nextSelected);
-        this.plugin.settings.enabledSnippetNames = Array.from(nextEnabled);
-        await this.plugin.saveSettings();
-        this.renderSnippets();
-      });
-
-      enableBox.addEventListener("change", async () => {
-        const nextEnabled = new Set(this.plugin.settings.enabledSnippetNames);
-        if (enableBox.checked) {
-          nextEnabled.add(snippet.name);
-        } else {
-          nextEnabled.delete(snippet.name);
-        }
-        this.plugin.settings.enabledSnippetNames = Array.from(nextEnabled);
-        await this.plugin.saveSettings();
-        this.renderSnippets();
-      });
-
-      const contentEl = rowEl.createDiv("plugin-share-linker-row-content");
-      const titleEl = contentEl.createDiv("plugin-share-linker-row-title");
-      titleEl.createEl("code", { text: snippet.fileName });
+    for (const row of rows) {
+      this.renderSnippetPair(row, selected, enabled);
     }
+  }
+
+  renderSnippetPair(row, selected, enabled) {
+    const t = this.plugin.t.bind(this.plugin);
+    const pairEl = this.snippetsListEl.createDiv("plugin-share-linker-pair");
+    const leftEl = pairEl.createDiv("plugin-share-linker-pair-left");
+
+    if (!row.source) {
+      leftEl.addClass("is-empty");
+      leftEl.createDiv("plugin-share-linker-pair-placeholder").setText(t("pairPlaceholderSource"));
+      this.renderTargetCell(pairEl, row);
+      return;
+    }
+
+    const snippet = row.source;
+    const checksEl = leftEl.createDiv("plugin-share-linker-checks");
+
+    const shareLabel = checksEl.createEl("label", { cls: "plugin-share-linker-check" });
+    const shareBox = shareLabel.createEl("input", { type: "checkbox" });
+    shareLabel.createSpan({ text: t("share") });
+
+    const enableLabel = checksEl.createEl("label", { cls: "plugin-share-linker-check" });
+    const enableBox = enableLabel.createEl("input", { type: "checkbox" });
+    enableLabel.createSpan({ text: t("enable") });
+
+    shareBox.checked = selected.has(snippet.name);
+    enableBox.checked = enabled.has(snippet.name);
+    enableBox.disabled = !shareBox.checked;
+
+    shareBox.addEventListener("change", async () => {
+      const nextSelected = new Set(this.plugin.settings.selectedSnippetNames);
+      const nextEnabled = new Set(this.plugin.settings.enabledSnippetNames);
+      if (shareBox.checked) {
+        nextSelected.add(snippet.name);
+        nextEnabled.add(snippet.name);
+      } else {
+        nextSelected.delete(snippet.name);
+        nextEnabled.delete(snippet.name);
+      }
+      this.plugin.settings.selectedSnippetNames = Array.from(nextSelected);
+      this.plugin.settings.enabledSnippetNames = Array.from(nextEnabled);
+      await this.plugin.saveSettings();
+      this.renderSnippets();
+    });
+
+    enableBox.addEventListener("change", async () => {
+      const nextEnabled = new Set(this.plugin.settings.enabledSnippetNames);
+      if (enableBox.checked) {
+        nextEnabled.add(snippet.name);
+      } else {
+        nextEnabled.delete(snippet.name);
+      }
+      this.plugin.settings.enabledSnippetNames = Array.from(nextEnabled);
+      await this.plugin.saveSettings();
+      this.renderSnippets();
+    });
+
+    const contentEl = leftEl.createDiv("plugin-share-linker-row-content");
+    const titleEl = contentEl.createDiv("plugin-share-linker-row-title");
+    titleEl.createEl("code", { text: snippet.fileName });
+
+    this.renderTargetCell(pairEl, row);
+  }
+
+  renderAllResourceLists() {
+    this.renderPlugins();
+    this.renderThemes();
+    this.renderSnippets();
+  }
+
+  async checkTargetLinks() {
+    if (this.healthBusy || this.busy) return;
+
+    const t = this.plugin.t.bind(this.plugin);
+    const targetVaultPath = this.plugin.settings.targetVaultPath;
+    if (!normalizePathInput(targetVaultPath)) {
+      new Notice(t("targetRequired"));
+      return;
+    }
+    this.healthBusy = true;
+    this.healthMessage = t("healthChecking");
+    this.healthError = "";
+    if (this.detectLinksButton && typeof this.detectLinksButton.setDisabled === "function") {
+      this.detectLinksButton.setDisabled(true);
+    }
+    this.renderLinkHealth();
+    this.plugin.beginDebugSession("check-links");
+    this.plugin.debug("health", `start target=${targetVaultPath || "(empty)"}`);
+
+    try {
+      const scan = await this.plugin.scanTargetVault(targetVaultPath);
+      if (normalizePathInput(this.plugin.settings.targetVaultPath) !== normalizePathInput(targetVaultPath)) {
+        // The target changed while the scan was running; the result belongs to the old vault.
+        this.plugin.debug("health", "scan discarded: target changed during scan");
+        return;
+      }
+      this.targetInventory = scan;
+      this.healthMessage = "";
+      const found = scan.summary.broken + scan.summary.unreachable;
+      new Notice(
+        found > 0 ? t("healthNoticeFound", scan.summary.broken, scan.summary.unreachable) : t("healthNoticeClear")
+      );
+      this.plugin.debug("health", `done anomalies=${found}`);
+    } catch (error) {
+      const message = error && error.message ? error.message : String(error);
+      this.healthMessage = t("healthFailed", message);
+      this.healthError = this.healthMessage;
+      new Notice(this.healthMessage);
+      this.plugin.debug("health", `failed: ${message}`);
+      this.renderDebugTrail();
+    } finally {
+      this.healthBusy = false;
+      this.healthMessage = this.healthMessage === t("healthChecking") ? "" : this.healthMessage;
+      if (this.detectLinksButton && typeof this.detectLinksButton.setDisabled === "function") {
+        this.detectLinksButton.setDisabled(false);
+      }
+      this.renderAllResourceLists();
+      this.renderLinkHealth();
+    }
+  }
+
+  renderLinkHealth() {
+    if (!this.healthResultEl) return;
+
+    const t = this.plugin.t.bind(this.plugin);
+    const inventory = this.targetInventory;
+    const summary = inventory ? inventory.summary : null;
+
+    if (this.healthBadgeEl) {
+      if (!inventory) {
+        this.healthBadgeEl.setText("");
+        this.healthBadgeEl.addClass("is-hidden");
+      } else {
+        const found = summary.broken + summary.unreachable;
+        this.healthBadgeEl.removeClass("is-hidden");
+        this.healthBadgeEl.setText(found > 0 ? t("healthBadge", summary.broken, summary.unreachable) : t("healthBadgeNone"));
+        if (found === 0) this.healthBadgeEl.addClass("is-clear");
+        else this.healthBadgeEl.removeClass("is-clear");
+      }
+    }
+    if (this.healthStatusEl) this.healthStatusEl.setText(this.healthMessage || "");
+
+    if (this.healthSummaryEl) {
+      this.healthSummaryEl.empty();
+      if (inventory) {
+        this.healthSummaryEl.setText(
+          t(
+            "healthSummary",
+            summary.total,
+            summary.totalLinks,
+            summary.healthy,
+            summary.broken,
+            summary.unreachable,
+            summary.copies
+          ) + ` ${t("targetCheckElapsed", inventory.elapsedMs)}`
+        );
+      }
+    }
+
+    this.healthResultEl.empty();
+    if (this.healthBulkEl) this.healthBulkEl.empty();
+
+    if (!inventory) {
+      this.healthResultEl.createDiv("plugin-share-linker-empty").setText(this.healthError || t("healthNotScanned"));
+      return;
+    }
+
+    const anomalies = { plugins: [], themes: [], snippets: [] };
+    for (const kind of TARGET_KINDS) {
+      for (const entry of inventory.kinds[kind] || []) {
+        if (entry.status === "broken" || entry.status === "unreachable") anomalies[kind].push(entry);
+      }
+    }
+    const totalAnomalies = anomalies.plugins.length + anomalies.themes.length + anomalies.snippets.length;
+
+    if (totalAnomalies === 0) {
+      this.healthResultEl.createDiv("plugin-share-linker-empty").setText(t("healthBadgeNone"));
+      return;
+    }
+
+    const rebuildable = [];
+    const deletable = [];
+    for (const kind of TARGET_KINDS) {
+      for (const entry of anomalies[kind]) {
+        if (entry.status !== "broken") continue;
+        if (this.hasSameNameSource(kind, entry.name)) rebuildable.push(entry);
+        else deletable.push(entry);
+      }
+    }
+
+    if (this.healthBulkEl) {
+      if (rebuildable.length > 0) {
+        this.createHealthButton(
+          this.healthBulkEl,
+          t("healthRebuildAll"),
+          t("healthRebuildAllTitle"),
+          () => this.confirmBulkRebuild(rebuildable)
+        );
+      }
+      if (deletable.length > 0) {
+        this.createHealthButton(
+          this.healthBulkEl,
+          t("healthDeleteAll"),
+          t("healthDeleteAllTitle"),
+          () => this.confirmBulkDelete(deletable),
+          true
+        );
+      }
+    }
+
+    const groups = [
+      { kind: "plugins", label: t("resultsPlugins") },
+      { kind: "themes", label: t("resultsThemes") },
+      { kind: "snippets", label: t("resultsSnippets") },
+    ];
+    for (const group of groups) {
+      const list = anomalies[group.kind];
+      if (list.length === 0) continue;
+      const groupEl = this.healthResultEl.createDiv("plugin-share-linker-health-group");
+      groupEl.createDiv("plugin-share-linker-health-group-title").setText(t("healthGroupTitle", group.label, list.length));
+      for (const entry of list) this.renderHealthRow(groupEl, entry);
+    }
+  }
+
+  renderHealthRow(containerEl, entry) {
+    const t = this.plugin.t.bind(this.plugin);
+    const rowEl = containerEl.createDiv("plugin-share-linker-health-row");
+    const mainEl = rowEl.createDiv("plugin-share-linker-health-main");
+    const titleEl = mainEl.createDiv("plugin-share-linker-health-title");
+    titleEl.createSpan({ text: entry.name });
+
+    const unreachable = entry.status === "unreachable";
+    titleEl.createSpan({
+      cls: `plugin-share-linker-target-chip plugin-share-linker-target-${unreachable ? "unreachable" : "broken"}`,
+      text: unreachable ? t("targetState.unreachable") : t("targetState.broken"),
+    });
+
+    const hasSource = this.hasSameNameSource(entry.kind, entry.name);
+    if (!unreachable && !hasSource) {
+      titleEl.createSpan({ cls: "plugin-share-linker-target-chip is-orphan", text: t("healthNoSource") });
+    }
+
+    const targetPath = entry.absoluteTarget || entry.linkTarget;
+    if (targetPath) {
+      mainEl.createDiv("plugin-share-linker-target-path").createEl("code", { text: t("healthPointsTo", targetPath) });
+    }
+
+    const actionsEl = rowEl.createDiv("plugin-share-linker-health-actions");
+    if (unreachable) {
+      const root = entry.absoluteTarget ? path.parse(entry.absoluteTarget).root || entry.absoluteTarget : "?";
+      actionsEl.createDiv("plugin-share-linker-health-hint").setText(t("healthUnreachableHint", root));
+      return;
+    }
+
+    if (hasSource) {
+      this.createHealthButton(actionsEl, t("healthRebuild"), t("healthRebuildTitle"), () => this.rebuildSingle(entry));
+    }
+    this.createHealthButton(
+      actionsEl,
+      t("healthDelete"),
+      t("healthDeleteTitle"),
+      () => this.deleteSingle(entry),
+      true
+    );
+  }
+
+  createHealthButton(containerEl, label, title, onClick, isDanger) {
+    const buttonEl = containerEl.createEl("button", {
+      cls: `plugin-share-linker-health-button${isDanger ? " is-danger" : ""}`,
+      text: label,
+    });
+    if (title) buttonEl.title = title;
+    if (title) buttonEl.setAttribute("aria-label", label);
+    buttonEl.addEventListener("click", onClick);
+    return buttonEl;
+  }
+
+  async rebuildSingle(entry) {
+    const t = this.plugin.t.bind(this.plugin);
+    this.plugin.debug("health", `rebuild ${entry.kind}/${entry.name}`);
+    try {
+      const outcome = await this.plugin.rebuildTargetLink(
+        entry.kind,
+        entry.name,
+        this.plugin.settings.targetVaultPath
+      );
+      if (!outcome || outcome.status !== "rebuilt") {
+        const message = (outcome && outcome.message) || t("healthRebuildNotRestored");
+        new Notice(`${message}${outcome && outcome.restored ? ` ${t("healthRebuildRestored")}` : ""}`);
+        this.healthError = message;
+      } else {
+        new Notice(outcome.message);
+        this.markEntryHealthy(entry);
+        entry.rebuiltFrom = outcome.oldTarget;
+        entry.linkTarget = outcome.newTarget;
+        entry.absoluteTarget = outcome.newTarget;
+        entry.isLink = true;
+        this.healthError = "";
+      }
+    } catch (error) {
+      const message = error && error.message ? error.message : String(error);
+      new Notice(t("healthRebuildFailed", entry.name, message));
+      this.healthError = message;
+    }
+    this.renderAllResourceLists();
+    this.renderLinkHealth();
+  }
+
+  async deleteSingle(entry) {
+    const t = this.plugin.t.bind(this.plugin);
+    this.plugin.debug("health", `delete ${entry.kind}/${entry.name}`);
+    try {
+      const outcome = await this.plugin.deleteTargetLink(
+        entry.kind,
+        entry.name,
+        this.plugin.settings.targetVaultPath
+      );
+      const configText = this.describeConfigCleanup(outcome.config);
+      new Notice(
+        configText
+          ? t("healthDeletedWithConfig", entry.name, configText)
+          : t("healthDeleted", entry.name)
+      );
+      this.removeInventoryEntry(entry);
+      this.healthError = "";
+    } catch (error) {
+      const message = error && error.message ? error.message : String(error);
+      new Notice(t("healthDeleteFailed", message));
+      this.healthError = message;
+    }
+    this.renderAllResourceLists();
+    this.renderLinkHealth();
+  }
+
+  describeConfigCleanup(config) {
+    const t = this.plugin.t.bind(this.plugin);
+    if (!config) return "";
+    if (config.error) return t("healthConfigFailed", config.error);
+    const parts = [];
+    if (config.pluginsRemoved && config.pluginsRemoved.length > 0) {
+      parts.push(t("healthConfigRemovedPlugins", config.pluginsRemoved.length));
+    }
+    if (config.snippetsRemoved && config.snippetsRemoved.length > 0) {
+      parts.push(t("healthConfigRemovedSnippets", config.snippetsRemoved.length));
+    }
+    if (config.themeCleared) {
+      parts.push(t("healthConfigClearedTheme", config.themeCleared));
+    }
+    return parts.length > 0 ? t("healthConfigJoined", parts) : t("healthConfigUnchanged");
+  }
+
+  removeInventoryEntry(entry) {
+    if (!this.targetInventory || !this.targetInventory.kinds) return;
+    const list = this.targetInventory.kinds[entry.kind];
+    if (!Array.isArray(list)) return;
+    const index = list.findIndex((item) => item.name === entry.name);
+    if (index >= 0) list.splice(index, 1);
+    if (this.targetInventory.summary) {
+      const summary = this.targetInventory.summary;
+      const key = entry.status === "unreachable" ? "unreachable" : "broken";
+      summary[key] = Math.max(0, (summary[key] || 0) - 1);
+      summary.total = Math.max(0, (summary.total || 1) - 1);
+      if (entry.isLink) summary.totalLinks = Math.max(0, (summary.totalLinks || 1) - 1);
+    }
+  }
+
+  markEntryHealthy(entry) {
+    if (!this.targetInventory || !this.targetInventory.summary) return;
+    const summary = this.targetInventory.summary;
+    if (entry.status === "broken") summary.broken = Math.max(0, (summary.broken || 0) - 1);
+    if (entry.status === "unreachable") summary.unreachable = Math.max(0, (summary.unreachable || 0) - 1);
+    summary.healthy = (summary.healthy || 0) + 1;
+    entry.status = "healthy";
+  }
+
+  confirmBulkRebuild(entries) {
+    const t = this.plugin.t.bind(this.plugin);
+    const lines = entries.map((entry) => {
+      const source = this.getSourcePath(entry.kind, entry.name);
+      return `${entry.name}: ${entry.absoluteTarget || "-"} → ${source || "?"}`;
+    });
+    new TargetActionConfirmModal(this.app, {
+      title: t("healthBulkConfirmRebuild"),
+      warning: t("healthConfirmRebuildWarning"),
+      lines,
+      confirmLabel: t("healthConfirmOk"),
+      cancelLabel: t("healthConfirmCancel"),
+      onConfirm: () => this.runBulkRebuild(entries),
+    }).open();
+  }
+
+  confirmBulkDelete(entries) {
+    const t = this.plugin.t.bind(this.plugin);
+    const lines = entries.map((entry) => `${entry.name}: ${entry.absoluteTarget || entry.linkTarget || "-"}`);
+    new TargetActionConfirmModal(this.app, {
+      title: t("healthBulkConfirmDelete"),
+      warning: t("healthConfirmDeleteWarning"),
+      lines,
+      confirmLabel: t("healthConfirmOk"),
+      cancelLabel: t("healthConfirmCancel"),
+      onConfirm: () => this.runBulkDelete(entries),
+    }).open();
+  }
+
+  getSourcePath(kind, name) {
+    if (kind === "plugins") {
+      const match = this.plugins.find((plugin) => plugin.folderName === name);
+      return match ? match.sourcePath : "";
+    }
+    if (kind === "themes") {
+      const match = this.themes.find((theme) => theme.folderName === name);
+      return match ? match.sourcePath : "";
+    }
+    const match = this.snippets.find((snippet) => snippet.fileName === name);
+    return match ? match.sourcePath : "";
+  }
+
+  async runBulkRebuild(entries) {
+    const t = this.plugin.t.bind(this.plugin);
+    let ok = 0;
+    let failed = 0;
+    for (const entry of entries) {
+      try {
+        const outcome = await this.plugin.rebuildTargetLink(
+          entry.kind,
+          entry.name,
+          this.plugin.settings.targetVaultPath
+        );
+        if (outcome && outcome.status === "rebuilt") {
+          this.markEntryHealthy(entry);
+          entry.rebuiltFrom = outcome.oldTarget;
+          entry.linkTarget = outcome.newTarget;
+          entry.absoluteTarget = outcome.newTarget;
+          ok += 1;
+        } else {
+          failed += 1;
+        }
+      } catch (error) {
+        failed += 1;
+        this.plugin.debug("health", `bulk rebuild failed ${entry.name}: ${error && error.message}`);
+      }
+    }
+    new Notice(t("healthBulkRebuildDone", ok, failed));
+    this.renderAllResourceLists();
+    this.renderLinkHealth();
+  }
+
+  async runBulkDelete(entries) {
+    const t = this.plugin.t.bind(this.plugin);
+    let ok = 0;
+    let failed = 0;
+    for (const entry of entries) {
+      try {
+        await this.plugin.deleteTargetLink(entry.kind, entry.name, this.plugin.settings.targetVaultPath);
+        this.removeInventoryEntry(entry);
+        ok += 1;
+      } catch (error) {
+        failed += 1;
+        this.plugin.debug("health", `bulk delete failed ${entry.name}: ${error && error.message}`);
+      }
+    }
+    new Notice(t("healthBulkDeleteDone", ok, failed));
+    this.renderAllResourceLists();
+    this.renderLinkHealth();
+  }
+
+  async openVaultPicker() {
+    const t = this.plugin.t.bind(this.plugin);
+    let known = { ok: false, vaults: [], error: null };
+    try {
+      known = await this.plugin.listKnownVaults();
+    } catch (error) {
+      known = { ok: false, vaults: [], error: error && error.message ? error.message : String(error) };
+    }
+    new TargetVaultPickerModal(this.app, {
+      title: t("pickerTitle"),
+      subtitle: known.ok ? t("pickerSubtitle") : t("pickerRegistryFallback"),
+      emptyText: t("pickerEmpty"),
+      browseLabel: t("pickerBrowse"),
+      browseTitle: t("pickerBrowseTitle"),
+      cancelLabel: t("pickerCancel"),
+      currentChip: t("pickerCurrentChip"),
+      openChip: t("pickerOpenChip"),
+      missingChip: t("pickerMissingChip"),
+      currentVaultChip: t("pickerCurrentVaultChip"),
+      vaults: known.vaults,
+      onPick: (vaultPath) => this.applyTargetVaultPath(vaultPath),
+      onBrowse: () => this.browseVault(),
+    }).open();
+  }
+
+  async browseVault() {
+    const t = this.plugin.t.bind(this.plugin);
+    try {
+      const picked = await this.plugin.browseTargetVault();
+      if (!picked) return;
+      await this.applyTargetVaultPath(picked);
+    } catch (error) {
+      const message = error && error.message ? error.message : String(error);
+      new Notice(t("pickerBrowseFailed", message));
+    }
+  }
+
+  invalidateTargetInventory() {
+    if (!this.targetInventory && !this.healthError && !this.healthMessage) return;
+    this.targetInventory = null;
+    this.healthError = "";
+    this.healthMessage = "";
+    this.renderAllResourceLists();
+    this.renderLinkHealth();
+  }
+
+  async applyTargetVaultPath(vaultPath) {
+    const t = this.plugin.t.bind(this.plugin);
+    const normalized = normalizePathInput(vaultPath);
+    if (!normalized) return;
+    this.plugin.settings.targetVaultPath = normalized;
+    await this.plugin.saveSettings();
+    this.invalidateTargetInventory();
+    new Notice(t("pickerSelected", normalized));
+    this.display();
   }
 
   async runShareAction(kind, mode) {
@@ -1251,6 +2202,12 @@ class PluginShareLinkerSettingTab extends PluginSettingTab {
 
       this.recordOutcome(kind, mode, outcome);
       this.renderResults();
+
+      // The target vault changed, so any earlier health scan is out of date.
+      this.targetInventory = null;
+      this.healthError = "";
+      this.renderAllResourceLists();
+      this.renderLinkHealth();
 
       const createdCount = outcome.results.filter((result) => result.status === "created").length;
       new Notice(isCopyMode ? t("copyNotice", createdCount) : t("linkNotice", createdCount));
@@ -1410,6 +2367,464 @@ class PluginShareLinkerSettingTab extends PluginSettingTab {
       boxEl.createDiv("plugin-share-linker-debug-line").setText(`+${offset}ms  ${entry.label}: ${entry.detail}`);
     }
   }
+}
+
+class TargetVaultPickerModal extends Modal {
+  constructor(app, options) {
+    super(app);
+    this.options = options || {};
+  }
+
+  onOpen() {
+    const opts = this.options;
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass("plugin-share-linker-vault-modal");
+    contentEl.createEl("h3", { text: opts.title || "" });
+    if (opts.subtitle) contentEl.createDiv("plugin-share-linker-hint").setText(opts.subtitle);
+
+    const listEl = contentEl.createDiv("plugin-share-linker-vault-list");
+    const vaults = Array.isArray(opts.vaults) ? opts.vaults : [];
+    if (vaults.length === 0) {
+      listEl.createDiv("plugin-share-linker-empty").setText(opts.emptyText || "");
+    }
+
+    for (const vault of vaults) {
+      const rowEl = listEl.createDiv("plugin-share-linker-vault-row");
+      const selectable = vault.exists && !vault.isCurrent;
+      if (!selectable) rowEl.addClass("is-disabled");
+
+      const mainEl = rowEl.createDiv("plugin-share-linker-vault-main");
+      mainEl.createEl("code", { text: vault.path });
+
+      const chipsEl = rowEl.createDiv("plugin-share-linker-vault-chips");
+      if (vault.isSaved) {
+        chipsEl.createSpan({ cls: "plugin-share-linker-vault-chip is-current", text: opts.currentChip });
+      }
+      if (vault.isOpen) {
+        chipsEl.createSpan({ cls: "plugin-share-linker-vault-chip is-open", text: opts.openChip });
+      }
+      if (vault.isCurrent) {
+        chipsEl.createSpan({ cls: "plugin-share-linker-vault-chip is-disabled", text: opts.currentVaultChip });
+      }
+      if (!vault.exists) {
+        chipsEl.createSpan({ cls: "plugin-share-linker-vault-chip is-missing", text: opts.missingChip });
+      }
+
+      if (selectable) {
+        rowEl.addEventListener("click", () => {
+          this.close();
+          if (typeof opts.onPick === "function") opts.onPick(vault.path);
+        });
+      }
+    }
+
+    const footerEl = contentEl.createDiv("plugin-share-linker-vault-footer");
+    const browseButton = footerEl.createEl("button", { cls: "mod-cta", text: opts.browseLabel || "" });
+    browseButton.addEventListener("click", () => {
+      this.close();
+      if (typeof opts.onBrowse === "function") opts.onBrowse();
+    });
+    const cancelButton = footerEl.createEl("button", { text: opts.cancelLabel || "" });
+    cancelButton.addEventListener("click", () => this.close());
+  }
+
+  onClose() {
+    this.contentEl.empty();
+  }
+}
+
+class TargetActionConfirmModal extends Modal {
+  constructor(app, options) {
+    super(app);
+    this.options = options || {};
+  }
+
+  onOpen() {
+    const opts = this.options;
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass("plugin-share-linker-confirm-modal");
+    contentEl.createEl("h3", { text: opts.title || "" });
+    if (opts.warning) contentEl.createDiv("plugin-share-linker-warning").setText(opts.warning);
+
+    const listEl = contentEl.createEl("ul", { cls: "plugin-share-linker-confirm-list" });
+    for (const line of opts.lines || []) {
+      listEl.createEl("li", { text: line });
+    }
+
+    const footerEl = contentEl.createDiv("plugin-share-linker-vault-footer");
+    const confirmButton = footerEl.createEl("button", { cls: "mod-cta", text: opts.confirmLabel || "" });
+    confirmButton.addEventListener("click", () => {
+      this.close();
+      if (typeof opts.onConfirm === "function") opts.onConfirm();
+    });
+    const cancelButton = footerEl.createEl("button", { text: opts.cancelLabel || "" });
+    cancelButton.addEventListener("click", () => this.close());
+  }
+
+  onClose() {
+    this.contentEl.empty();
+  }
+}
+
+module.exports.__test = {
+  mergeDiffRows,
+  describeTargetRow,
+  classifyLinkExistence,
+  readVaultRegistry,
+  getVaultRegistryCandidates,
+  scanTargetConfigDirs,
+  rebuildLink,
+  cleanEnabledRecords,
+  TargetVaultPickerModal,
+  TargetActionConfirmModal,
+  TEXT,
+};
+
+function safeRequire(request) {
+  try {
+    return require(request);
+  } catch (error) {
+    return null;
+  }
+}
+
+function getVaultRegistryCandidates() {
+  const candidates = [];
+  const electron = safeRequire("electron");
+  const electronApp = electron && (electron.app || (electron.remote && electron.remote.app));
+  if (electronApp && typeof electronApp.getPath === "function") {
+    try {
+      const userData = electronApp.getPath("userData");
+      if (userData) candidates.push(path.join(userData, "obsidian.json"));
+    } catch (error) {
+      // fall through to the platform defaults
+    }
+  }
+
+  const home = process.env.HOME || process.env.USERPROFILE || "";
+  if (process.platform === "win32") {
+    const appData = process.env.APPDATA || (home ? path.join(home, "AppData", "Roaming") : "");
+    if (appData) candidates.push(path.join(appData, "obsidian", "obsidian.json"));
+  } else if (process.platform === "darwin") {
+    if (home) candidates.push(path.join(home, "Library", "Application Support", "obsidian", "obsidian.json"));
+  } else {
+    const configHome = process.env.XDG_CONFIG_HOME || (home ? path.join(home, ".config") : "");
+    if (configHome) candidates.push(path.join(configHome, "obsidian", "obsidian.json"));
+  }
+
+  return Array.from(new Set(candidates));
+}
+
+async function readVaultRegistry() {
+  const candidates = getVaultRegistryCandidates();
+  for (const candidate of candidates) {
+    let raw;
+    try {
+      raw = await fs.promises.readFile(candidate, "utf8");
+    } catch (error) {
+      if (error && (error.code === "ENOENT" || error.code === "ENOTDIR")) continue;
+      return { ok: false, source: candidate, error: error.message, vaults: [] };
+    }
+
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (error) {
+      return { ok: false, source: candidate, error: error.message, vaults: [] };
+    }
+
+    const vaultMap = isPlainObject(parsed) && isPlainObject(parsed.vaults) ? parsed.vaults : {};
+    const vaults = [];
+    for (const key of Object.keys(vaultMap)) {
+      const item = vaultMap[key];
+      if (!isPlainObject(item) || typeof item.path !== "string" || !item.path.trim()) continue;
+      vaults.push({
+        path: item.path,
+        ts: typeof item.ts === "number" ? item.ts : 0,
+        open: !!item.open,
+      });
+    }
+    return { ok: true, source: candidate, error: null, vaults };
+  }
+  return { ok: false, source: "", error: null, vaults: [] };
+}
+
+const TARGET_KINDS = ["plugins", "themes", "snippets"];
+
+async function scanTargetConfigDirs(configDir) {
+  const kinds = { plugins: [], themes: [], snippets: [] };
+  const summary = {
+    total: 0,
+    totalLinks: 0,
+    healthy: 0,
+    broken: 0,
+    unreachable: 0,
+    copies: 0,
+  };
+
+  for (const kind of TARGET_KINDS) {
+    const dirPath = path.join(configDir, kind);
+    const entries = await readDirSafe(dirPath);
+
+    for (const dirent of entries) {
+      if (!dirent.name || dirent.name.startsWith(".")) continue;
+      const isLink = dirent.isSymbolicLink();
+      if (kind === "snippets" && !/\.css$/i.test(dirent.name)) continue;
+      if (kind === "snippets" && !isLink && !dirent.isFile()) continue;
+      if ((kind === "plugins" || kind === "themes") && !isLink && !dirent.isDirectory()) continue;
+
+      const entryPath = path.join(dirPath, dirent.name);
+      const record = {
+        kind,
+        name: dirent.name,
+        entryPath,
+        isLink,
+        linkTarget: null,
+        absoluteTarget: null,
+        status: "copy",
+        errorCode: null,
+      };
+
+      if (isLink) {
+        summary.totalLinks += 1;
+        let rawTarget = null;
+        try {
+          rawTarget = await fs.promises.readlink(entryPath);
+        } catch (error) {
+          record.status = "unreachable";
+          record.errorCode = (error && error.code) || "UNKNOWN";
+          summary.unreachable += 1;
+          summary.total += 1;
+          kinds[kind].push(record);
+          continue;
+        }
+        record.linkTarget = rawTarget;
+        record.absoluteTarget = path.resolve(path.dirname(entryPath), rawTarget);
+        const classification = await classifyLinkExistence(entryPath, record.absoluteTarget);
+        record.status = classification.status;
+        record.errorCode = classification.errorCode;
+        if (classification.status === "healthy") summary.healthy += 1;
+        if (classification.status === "broken") summary.broken += 1;
+        if (classification.status === "unreachable") summary.unreachable += 1;
+      } else {
+        summary.copies += 1;
+      }
+
+      summary.total += 1;
+      kinds[kind].push(record);
+    }
+  }
+
+  return { kinds, summary };
+}
+
+async function classifyLinkExistence(entryPath, absoluteTarget) {
+  let linkErrorCode = "UNKNOWN";
+  try {
+    const stats = await fs.promises.stat(entryPath);
+    if (stats) return { status: "healthy", errorCode: null };
+  } catch (error) {
+    linkErrorCode = (error && error.code) || "UNKNOWN";
+    if (!["ENOENT", "ENOTDIR", "ELOOP"].includes(linkErrorCode)) {
+      return { status: "unreachable", errorCode: linkErrorCode };
+    }
+  }
+
+  const root = path.parse(absoluteTarget).root;
+  const ancestors = [];
+  let current = path.dirname(absoluteTarget);
+  for (let depth = 0; depth < 4; depth += 1) {
+    if (!current || current === root) break;
+    ancestors.push(current);
+    const parent = path.dirname(current);
+    if (!parent || parent === current) break;
+    current = parent;
+  }
+
+  for (const ancestor of ancestors) {
+    try {
+      const stats = await fs.promises.stat(ancestor);
+      if (stats) return { status: "broken", errorCode: linkErrorCode };
+    } catch (error) {
+      const code = (error && error.code) || "UNKNOWN";
+      if (code === "EACCES" || code === "EPERM" || code === "ELOOP") {
+        return { status: "unreachable", errorCode: code };
+      }
+    }
+  }
+
+  if (root) {
+    try {
+      const rootStats = await fs.promises.stat(root);
+      if (rootStats) return { status: "broken", errorCode: linkErrorCode };
+    } catch (error) {
+      return { status: "unreachable", errorCode: (error && error.code) || linkErrorCode };
+    }
+  }
+
+  return { status: "unreachable", errorCode: linkErrorCode };
+}
+
+async function rebuildLink(entryPath, sourcePath, linkType, t, debug) {
+  const log = typeof debug === "function" ? debug : logDebug;
+  const existing = await fs.promises.lstat(entryPath).catch(() => null);
+  if (!existing || !existing.isSymbolicLink()) {
+    return {
+      status: "error",
+      oldTarget: null,
+      newTarget: sourcePath,
+      restored: false,
+      message: t("healthNotLink", entryPath),
+    };
+  }
+
+  const oldTarget = await fs.promises.readlink(entryPath).catch(() => null);
+  try {
+    await fs.promises.rm(entryPath, { force: true });
+  } catch (error) {
+    return {
+      status: "error",
+      oldTarget,
+      newTarget: sourcePath,
+      restored: true,
+      message: t("healthDeleteFailed", error.message),
+    };
+  }
+
+  try {
+    await runWithTimeout(
+      () => fs.promises.symlink(sourcePath, entryPath, linkType),
+      SYMLINK_TIMEOUT_MS,
+      t("symlinkTimeout", Math.round(SYMLINK_TIMEOUT_MS / 1000), sourcePath)
+    );
+    return {
+      status: "rebuilt",
+      oldTarget,
+      newTarget: sourcePath,
+      restored: false,
+      message: t("healthRebuilt", path.basename(entryPath), oldTarget || "?", sourcePath),
+    };
+  } catch (error) {
+    let restored = false;
+    if (oldTarget) {
+      try {
+        await fs.promises.symlink(oldTarget, entryPath, linkType);
+        restored = true;
+      } catch (restoreError) {
+        log("health", `restore failed ${entryPath}: ${restoreError && restoreError.message}`);
+      }
+    }
+    return {
+      status: "error",
+      oldTarget,
+      newTarget: sourcePath,
+      restored,
+      message: t("healthRebuildFailed", path.basename(entryPath), error.message),
+    };
+  }
+}
+
+async function cleanEnabledRecords(configDir, removed, t, debug) {
+  const log = typeof debug === "function" ? debug : logDebug;
+  const result = {
+    pluginsRemoved: [],
+    snippetsRemoved: [],
+    themeCleared: null,
+    backups: [],
+    warnings: [],
+    error: null,
+  };
+  const pluginIds = Array.isArray(removed.pluginIds) ? removed.pluginIds : [];
+  const snippetNames = Array.isArray(removed.snippetNames) ? removed.snippetNames : [];
+  const themeNames = Array.isArray(removed.themeNames) ? removed.themeNames : [];
+
+  if (pluginIds.length > 0) {
+    const filePath = path.join(configDir, "community-plugins.json");
+    const { existed, value, parseError } = await readJsonFile(filePath, []);
+    if (parseError) result.warnings.push(t("configParseWarning", filePath));
+    const current = Array.isArray(value) ? value.filter((id) => typeof id === "string") : [];
+    const removeSet = new Set(pluginIds);
+    const next = current.filter((id) => !removeSet.has(id));
+    const removedIds = current.filter((id) => removeSet.has(id));
+    if (removedIds.length > 0) {
+      if (existed) result.backups.push(await backupFile(filePath));
+      await writeJsonFile(filePath, next);
+      result.pluginsRemoved = removedIds;
+      log("health", `community cleaned ${removedIds.length}`);
+    }
+  }
+
+  const appearancePath = path.join(configDir, "appearance.json");
+  const appearanceRead = await readJsonFile(appearancePath, {});
+  const appearance = isPlainObject(appearanceRead.value) ? Object.assign({}, appearanceRead.value) : {};
+  if (appearanceRead.parseError) result.warnings.push(t("configParseWarning", appearancePath));
+  let appearanceChanged = false;
+
+  if (snippetNames.length > 0) {
+    const current = Array.isArray(appearance.enabledCssSnippets)
+      ? appearance.enabledCssSnippets.filter((name) => typeof name === "string")
+      : [];
+    const removeSet = new Set(snippetNames);
+    const next = current.filter((name) => !removeSet.has(name));
+    const removedNames = current.filter((name) => removeSet.has(name));
+    if (removedNames.length > 0) {
+      appearance.enabledCssSnippets = next;
+      result.snippetsRemoved = removedNames;
+      appearanceChanged = true;
+    }
+  }
+
+  if (themeNames.length > 0 && typeof appearance.cssTheme === "string") {
+    if (themeNames.includes(appearance.cssTheme)) {
+      result.themeCleared = appearance.cssTheme;
+      delete appearance.cssTheme;
+      appearanceChanged = true;
+    }
+  }
+
+  if (appearanceChanged) {
+    if (appearanceRead.existed) result.backups.push(await backupFile(appearancePath));
+    await writeJsonFile(appearancePath, appearance);
+    log("health", `appearance cleaned snippets=${result.snippetsRemoved.length} theme=${result.themeCleared || "-"}`);
+  }
+
+  return result;
+}
+
+function mergeDiffRows(kind, sourceRows, targetEntries) {
+  const map = new Map();
+  for (const row of sourceRows) {
+    map.set(row.name, { name: row.name, kind, source: row.source || row, target: null });
+  }
+  for (const entry of targetEntries) {
+    if (!map.has(entry.name)) {
+      map.set(entry.name, { name: entry.name, kind, source: null, target: null });
+    }
+    map.get(entry.name).target = entry;
+  }
+  return Array.from(map.values()).sort((left, right) => String(left.name).localeCompare(String(right.name), "zh-Hans-CN"));
+}
+
+function describeTargetRow(row) {
+  if (!row.target) return { key: "unshared", detail: "" };
+  const target = row.target;
+  if (target.status === "copy") return { key: "copy", detail: "" };
+  if (target.status === "broken") return { key: "broken", detail: target.absoluteTarget || target.linkTarget || "" };
+  if (target.status === "unreachable") {
+    return { key: "unreachable", detail: target.absoluteTarget || target.linkTarget || "" };
+  }
+  if (!row.source) return { key: "linked", detail: target.absoluteTarget || target.linkTarget || "" };
+  if (target.absoluteTarget && row.source.sourcePath) {
+    try {
+      const same = path.resolve(target.absoluteTarget) === path.resolve(row.source.sourcePath);
+      return same ? { key: "linked", detail: "" } : { key: "conflict", detail: target.absoluteTarget };
+    } catch (error) {
+      return { key: "conflict", detail: target.absoluteTarget };
+    }
+  }
+  return { key: "linked", detail: "" };
 }
 
 async function shareEntry(entry, targetPath, mode, symlinkType, t, debug) {
@@ -1690,3 +3105,4 @@ function setToolbarButtonLabel(button, label, title) {
     cls: "plugin-share-linker-button-label",
   });
 }
+

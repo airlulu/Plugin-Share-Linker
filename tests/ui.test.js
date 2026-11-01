@@ -263,13 +263,19 @@ async function main() {
   check("settings tab created", !!tab);
   await tab.display();
 
-  check("display() renders plugin rows", countByClass(tab.pluginsListEl, "plugin-share-linker-row") === 1);
-  check("display() renders theme rows", countByClass(tab.themesListEl, "plugin-share-linker-row") === 1);
-  check("display() renders snippet rows", countByClass(tab.snippetsListEl, "plugin-share-linker-row") === 1);
-  check("three sections rendered", countByClass(tab.containerEl, "plugin-share-linker-section") === 3);
+  check("display() renders plugin rows", countByClass(tab.pluginsListEl, "plugin-share-linker-pair") === 1);
+  check("display() renders theme rows", countByClass(tab.themesListEl, "plugin-share-linker-pair") === 1);
+  check("display() renders snippet rows", countByClass(tab.snippetsListEl, "plugin-share-linker-pair") === 1);
+  check("four sections rendered", countByClass(tab.containerEl, "plugin-share-linker-section") === 4);
   check("plugins toolbar has 5 buttons", tab.pluginsToolbarEl.children.length === 5);
   check("themes toolbar has 2 buttons", tab.themesToolbarEl.children.length === 2);
   check("snippets toolbar has 2 buttons", tab.snippetsToolbarEl.children.length === 2);
+  check("pair column heads rendered", countByClass(tab.containerEl, "plugin-share-linker-pair-head") === 3);
+  check("target state legend rendered", textOf(tab.containerEl).includes("目标库状态："));
+  check(
+    "rows start with the not-checked target state",
+    countByClass(tab.pluginsListEl, "plugin-share-linker-target-unknown") === 1
+  );
 
   // select all via button wiring
   plugin.settings.targetVaultPath = VAULT_B;
@@ -323,14 +329,14 @@ async function main() {
   obsidian.Notice = obsidian.Notice;
   plugin.settings.language = "en";
   await tab.display();
-  check("english render works", countByClass(tab.containerEl, "plugin-share-linker-section") === 3);
+  check("english render works", countByClass(tab.containerEl, "plugin-share-linker-section") === 4);
   check("english count line", tab.pluginsCountEl.textContent.includes("plugins found"), tab.pluginsCountEl.textContent);
   plugin.settings.language = "zh";
 
   // empty vault handling
   plugin.app.vault.adapter.getBasePath = () => EMPTY_VAULT;
   await tab.display();
-  check("empty vault render works", countByClass(tab.containerEl, "plugin-share-linker-empty") === 3);
+  check("empty vault render works", countByClass(tab.containerEl, "plugin-share-linker-empty") === 4);
 
   // error path: invalid target
   plugin.app.vault.adapter.getBasePath = () => VAULT_A;
@@ -373,6 +379,168 @@ async function main() {
     "target probe cleaned up",
     fs.readdirSync(VAULT_B).filter((name) => name.startsWith(".plugin-share-linker-probe-")).length === 0
   );
+
+  // --- Target vault picker buttons ----------------------------------------
+  check("choose button found", !!findByAria(tab.containerEl, "选择…"));
+  check("browse button found", !!findByAria(tab.containerEl, "浏览…"));
+  await tab.openVaultPicker();
+  check("vault picker opens without throwing", true);
+
+  // --- Link health section -------------------------------------------------
+  const linkType = process.platform === "win32" ? "junction" : "dir";
+  const goneDir = path.join(WORK, "gone-ui");
+  fs.mkdirSync(goneDir, { recursive: true });
+  let healthFixture = true;
+  try {
+    fs.rmSync(path.join(VAULT_B, ".obsidian", "plugins", "dataview"), { recursive: true, force: true });
+    fs.symlinkSync(goneDir, path.join(VAULT_B, ".obsidian", "plugins", "dataview"), linkType);
+    fs.symlinkSync(goneDir, path.join(VAULT_B, ".obsidian", "plugins", "gone-ui"), linkType);
+    fs.rmSync(goneDir, { recursive: true, force: true });
+  } catch (error) {
+    healthFixture = false;
+    console.log("SKIP link health assertions (" + error.code + ")");
+  }
+
+  const clickEl = async (element) => {
+    for (const handler of (element && element.listeners && element.listeners.click) || []) {
+      await handler();
+    }
+  };
+
+  if (healthFixture) {
+    plugin.app.vault.adapter.getBasePath = () => VAULT_A;
+    plugin.settings.targetVaultPath = VAULT_B;
+    await tab.refreshAll();
+    await tab.checkTargetLinks();
+
+    check("health inventory created", !!tab.targetInventory);
+    check(
+      "health badge shows broken count",
+      String(tab.healthBadgeEl.textContent).includes("失效"),
+      tab.healthBadgeEl.textContent
+    );
+    check("health rows rendered", countByClass(tab.healthResultEl, "plugin-share-linker-health-row") === 2);
+    check("bulk rebuild button rendered", !!findByAria(tab.healthBulkEl, "全部重建"));
+    check("bulk delete button rendered", !!findByAria(tab.healthBulkEl, "全部删除"));
+    check(
+      "paired rows re-render with target state",
+      countByClass(tab.pluginsListEl, "plugin-share-linker-pair") >= 2
+    );
+    check(
+      "broken target chips rendered in rows",
+      countByClass(tab.pluginsListEl, "plugin-share-linker-target-broken") >= 1
+    );
+    check("target-only placeholder rendered", textOf(tab.pluginsListEl).includes("当前库无同名项"));
+
+    const rebuildButton = findByAria(tab.healthResultEl, "重建链接");
+    check("rebuild button found", !!rebuildButton);
+    await clickEl(rebuildButton);
+    const rebuiltTarget = fs.readlinkSync(path.join(VAULT_B, ".obsidian", "plugins", "dataview"));
+    check(
+      "rebuild button rewrites the link to the current vault",
+      path.resolve(rebuiltTarget) === path.resolve(VAULT_A, ".obsidian", "plugins", "dataview"),
+      rebuiltTarget
+    );
+    check("health rows drop after rebuild", countByClass(tab.healthResultEl, "plugin-share-linker-health-row") === 1);
+
+    const deleteButton = findByAria(tab.healthResultEl, "删除链接");
+    check("delete button found", !!deleteButton);
+    await clickEl(deleteButton);
+    let goneLinkStillThere = true;
+    try {
+      fs.lstatSync(path.join(VAULT_B, ".obsidian", "plugins", "gone-ui"));
+    } catch (error) {
+      goneLinkStillThere = false;
+    }
+    check("delete button removes the broken link", !goneLinkStillThere);
+    check("health empty state after cleanup", countByClass(tab.healthResultEl, "plugin-share-linker-health-row") === 0);
+    check(
+      "health badge switches to the clear state",
+      String(tab.healthBadgeEl.textContent).includes("未发现"),
+      tab.healthBadgeEl.textContent
+    );
+  }
+
+  if (healthFixture) {
+    // --- Bulk delete on a fresh pair of broken links ----------------------
+    const goneDir2 = path.join(WORK, "gone-ui-2");
+    fs.mkdirSync(goneDir2, { recursive: true });
+    fs.symlinkSync(goneDir2, path.join(VAULT_B, ".obsidian", "plugins", "gone-a"), linkType);
+    fs.symlinkSync(goneDir2, path.join(VAULT_B, ".obsidian", "plugins", "gone-b"), linkType);
+    fs.rmSync(goneDir2, { recursive: true, force: true });
+
+    await tab.checkTargetLinks();
+    const deletableEntries = tab.targetInventory.kinds.plugins.filter(
+      (entry) => entry.status === "broken" && !tab.hasSameNameSource("plugins", entry.name)
+    );
+    check("bulk delete gathers the no-source links", deletableEntries.length === 2, JSON.stringify(deletableEntries.map((entry) => entry.name)));
+    await tab.runBulkDelete(deletableEntries);
+    check("bulk delete notice", String(obsidian.lastNotice).includes("全部删除完成"), obsidian.lastNotice);
+    check("bulk delete cleared the health rows", countByClass(tab.healthResultEl, "plugin-share-linker-health-row") === 0);
+  }
+
+  // --- Picker / confirm modals ---------------------------------------------
+  const T = Ctor.__test;
+  const pickerPicks = [];
+  const picker = new T.TargetVaultPickerModal(app, {
+    title: "选择目标 Vault",
+    subtitle: "来自 Obsidian 已记录的库",
+    emptyText: "没有可选的库。",
+    browseLabel: "浏览…",
+    browseTitle: "用系统文件夹对话框选择目标 Vault",
+    cancelLabel: "取消",
+    currentChip: "当前",
+    openChip: "打开中",
+    missingChip: "目录不存在",
+    currentVaultChip: "当前库，不可选",
+    vaults: [
+      { path: "E:\\known-saved", exists: true, isSaved: true, isOpen: true, isCurrent: false, lastOpenedAt: 3 },
+      { path: "E:\\vault-open", exists: true, isSaved: false, isOpen: true, isCurrent: false, lastOpenedAt: 2 },
+      { path: "E:\\vault-missing", exists: false, isSaved: false, isOpen: false, isCurrent: false, lastOpenedAt: 1 },
+      { path: "E:\\vault-current", exists: true, isSaved: false, isOpen: false, isCurrent: true, lastOpenedAt: 0 },
+    ],
+    onPick: (picked) => pickerPicks.push(picked),
+    onBrowse: () => pickerPicks.push("browse"),
+  });
+  picker.open();
+  const pickerText = textOf(picker.contentEl);
+  check("picker lists vault paths", pickerText.includes("E:\\known-saved") && pickerText.includes("E:\\vault-open"), pickerText);
+  check(
+    "picker marks saved/open/missing/current",
+    ["当前", "打开中", "目录不存在", "当前库，不可选"].every((label) => pickerText.includes(label)),
+    pickerText
+  );
+  const vaultRows = [];
+  walk(picker.contentEl, (el) => {
+    if (el.classes && el.classes.has("plugin-share-linker-vault-row")) vaultRows.push(el);
+  });
+  check("picker renders one row per vault", vaultRows.length === 4);
+  check("picker disables the missing vault row", vaultRows[2].classes.has("is-disabled"));
+  check("picker disables the current-vault row", vaultRows[3].classes.has("is-disabled"));
+  await vaultRows[0].listeners.click[0]();
+  check("picker picking a row reports the path", pickerPicks[0] === "E:\\known-saved", JSON.stringify(pickerPicks));
+
+  let confirmed = 0;
+  const confirmModal = new T.TargetActionConfirmModal(app, {
+    title: "确认删除以下链接？",
+    warning: "删除会移除链接本身。",
+    lines: ["a → x", "b → y"],
+    confirmLabel: "确认",
+    cancelLabel: "取消",
+    onConfirm: () => {
+      confirmed += 1;
+    },
+  });
+  confirmModal.open();
+  const confirmText = textOf(confirmModal.contentEl);
+  check("confirm modal lists the affected links", confirmText.includes("a → x") && confirmText.includes("b → y"), confirmText);
+  check("confirm modal shows the warning", confirmText.includes("删除会移除链接本身。"), confirmText);
+  const confirmButtons = [];
+  walk(confirmModal.contentEl, (el) => {
+    if (el.classes && el.classes.has("mod-cta")) confirmButtons.push(el);
+  });
+  await confirmButtons[0].listeners.click[0]();
+  check("confirm modal invokes onConfirm", confirmed === 1);
 
   console.log("\n" + (checks - failures) + "/" + checks + " checks passed");
   if (failures > 0) process.exit(1);

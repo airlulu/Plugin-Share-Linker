@@ -102,6 +102,29 @@ async function main() {
   check("copy after failure succeeds", goodCopy.results[0].status === "created");
   check("copied file exists", fs.existsSync(path.join(VAULT_B, ".obsidian", "plugins", "dataview", "manifest.json")));
 
+  // 4) A stalled link scan is cut off by the action timeout instead of hanging the page.
+  const hangVault = path.join(WORK, "hang-links");
+  fs.mkdirSync(path.join(hangVault, ".obsidian", "plugins"), { recursive: true });
+  const originalReaddir = fs.promises.readdir;
+  fs.promises.readdir = function (target, ...args) {
+    if (String(target).includes("hang-links")) return new Promise(() => {});
+    return originalReaddir.call(fs.promises, target, ...args);
+  };
+  const originalSetTimeout = global.setTimeout;
+  global.setTimeout = function (fn, ms, ...args) {
+    return originalSetTimeout(fn, ms === 45000 ? 10 : ms, ...args);
+  };
+  let scanError = "";
+  try {
+    await plugin.scanTargetVault(hangVault);
+    check("stalled link scan rejected", false, "did not throw");
+  } catch (error) {
+    scanError = error.message;
+  }
+  global.setTimeout = originalSetTimeout;
+  fs.promises.readdir = originalReaddir;
+  check("stalled link scan times out", scanError.includes("45 秒"), scanError);
+
   console.log("\n" + (checks - failures) + "/" + checks + " checks passed");
   if (failures > 0) process.exit(1);
 }

@@ -286,6 +286,219 @@ async function main() {
     console.log("SKIP symlink assertions (status=" + linkShare.results[0].status + " message=" + linkShare.results[0].message + ")");
   }
 
+  // --- Link health: scan / pair / rebuild / delete + config cleanup --------
+  const VAULT_D = path.join(WORK, "vault-d");
+  rmrf(VAULT_D);
+  fs.mkdirSync(path.join(VAULT_D, ".obsidian", "plugins"), { recursive: true });
+  fs.mkdirSync(path.join(VAULT_D, ".obsidian", "themes"), { recursive: true });
+  fs.mkdirSync(path.join(VAULT_D, ".obsidian", "snippets"), { recursive: true });
+  writeJson(path.join(VAULT_D, ".obsidian", "community-plugins.json"), [
+    "other-plugin",
+    "gone-plugin",
+    "ghost-unreachable",
+  ]);
+  writeJson(path.join(VAULT_D, ".obsidian", "appearance.json"), {
+    cssTheme: "Ghost Theme",
+    enabledCssSnippets: ["ghost", "other-snippet"],
+  });
+
+  const goneDir = path.join(WORK, "gone-source");
+  fs.mkdirSync(goneDir, { recursive: true });
+  const linkType = process.platform === "win32" ? "junction" : "dir";
+  let linksAvailable = true;
+  const makeLink = (targetPath, linkPath) => {
+    try {
+      fs.symlinkSync(targetPath, linkPath, linkType);
+      return true;
+    } catch (error) {
+      linksAvailable = false;
+      console.log("SKIP link health fixture (" + error.code + ")");
+      return false;
+    }
+  };
+
+  makeLink(path.join(VAULT_A, ".obsidian", "plugins", "dataview"), path.join(VAULT_D, ".obsidian", "plugins", "dataview"));
+  makeLink(goneDir, path.join(VAULT_D, ".obsidian", "plugins", "templater-obsidian"));
+  makeLink(goneDir, path.join(VAULT_D, ".obsidian", "plugins", "gone-plugin"));
+  makeLink(path.join(VAULT_A, ".obsidian", "themes", "Blue Topaz"), path.join(VAULT_D, ".obsidian", "themes", "Blue Topaz"));
+  makeLink(goneDir, path.join(VAULT_D, ".obsidian", "themes", "Ghost Theme"));
+  makeLink(path.join(VAULT_A, ".obsidian", "themes", "Blue Topaz"), path.join(VAULT_D, ".obsidian", "themes", "legacy"));
+  makeLink(goneDir, path.join(VAULT_D, ".obsidian", "snippets", "ghost.css"));
+  fs.rmSync(goneDir, { recursive: true, force: true });
+
+  writeJson(path.join(VAULT_D, ".obsidian", "plugins", "copied-plugin", "manifest.json"), {
+    id: "copied-plugin",
+    name: "Copied Plugin",
+    version: "1.0.0",
+  });
+  writeFile(path.join(VAULT_D, ".obsidian", "snippets", "other-snippet.css"), ".other {}");
+
+  let unreachableLinkCreated = false;
+  if (process.platform === "win32" && linksAvailable) {
+    const letters = "CDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+    const freeLetter = letters.find((letter) => !fs.existsSync(letter + ":\\"));
+    if (freeLetter) {
+      try {
+        fs.symlinkSync(freeLetter + ":\\nope\\plugins\\ghost", path.join(VAULT_D, ".obsidian", "plugins", "ghost-unreachable"), "junction");
+        unreachableLinkCreated = true;
+      } catch (error) {
+        console.log("SKIP unreachable fixture (" + error.code + ")");
+      }
+    }
+  }
+
+  if (linksAvailable) {
+    plugin.settings.targetVaultPath = VAULT_D;
+    const scan = await plugin.scanTargetVault(VAULT_D);
+    const statusOf = (kind, name) => {
+      const entry = scan.kinds[kind].find((item) => item.name === name);
+      return entry ? entry.status : "missing";
+    };
+
+    eq("scan: healthy plugin link", statusOf("plugins", "dataview"), "healthy");
+    eq("scan: broken plugin link", statusOf("plugins", "templater-obsidian"), "broken");
+    eq("scan: broken link without source", statusOf("plugins", "gone-plugin"), "broken");
+    eq("scan: healthy theme link", statusOf("themes", "Blue Topaz"), "healthy");
+    eq("scan: broken theme link", statusOf("themes", "Ghost Theme"), "broken");
+    eq("scan: broken snippet link", statusOf("snippets", "ghost.css"), "broken");
+    eq("scan: physical copy detected", statusOf("plugins", "copied-plugin"), "copy");
+    if (unreachableLinkCreated) {
+      eq("scan: unreachable link classified separately", statusOf("plugins", "ghost-unreachable"), "unreachable");
+      eq("scan: unreachable not counted as broken", scan.summary.unreachable, 1);
+    }
+    eq("scan: broken count", scan.summary.broken, 4);
+    eq("scan: link count", scan.summary.totalLinks, unreachableLinkCreated ? 8 : 7);
+    eq("scan: copy count", scan.summary.copies, 2);
+
+    // Pairing + right-column state description
+    const T = Ctor.__test;
+    const pluginSourceRows = (await plugin.listPlugins()).map((item) => ({ name: item.folderName, source: item }));
+    const pluginRows = T.mergeDiffRows("plugins", pluginSourceRows, scan.kinds.plugins);
+    check(
+      "merge keeps target-only rows",
+      pluginRows.some((row) => row.name === "copied-plugin" && !row.source),
+      JSON.stringify(pluginRows.map((row) => row.name))
+    );
+    eq("describe: linked", T.describeTargetRow(pluginRows.find((row) => row.name === "dataview")).key, "linked");
+    eq(
+      "describe: target-only copy",
+      T.describeTargetRow(pluginRows.find((row) => row.name === "copied-plugin")).key,
+      "copy"
+    );
+    const themeSourceRows = (await plugin.listThemes()).map((item) => ({ name: item.folderName, source: item }));
+    const themeRows = T.mergeDiffRows("themes", themeSourceRows, scan.kinds.themes);
+    eq(
+      "describe: healthy link pointing elsewhere is a conflict",
+      T.describeTargetRow(themeRows.find((row) => row.name === "legacy")).key,
+      "conflict"
+    );
+    const snippetSourceRows = (await plugin.listSnippets()).map((item) => ({ name: item.fileName, source: item }));
+    const snippetRows = T.mergeDiffRows("snippets", snippetSourceRows, scan.kinds.snippets);
+    eq(
+      "describe: source row without target is unshared",
+      T.describeTargetRow(snippetRows.find((row) => row.name === "wide-tables.css")).key,
+      "unshared"
+    );
+
+    // Rebuild a broken link that has a same-named source
+    const rebuilt = await plugin.rebuildTargetLink("plugins", "templater-obsidian", VAULT_D);
+    eq("rebuild status", rebuilt.status, "rebuilt");
+    const rebuiltTarget = fs.readlinkSync(path.join(VAULT_D, ".obsidian", "plugins", "templater-obsidian"));
+    check(
+      "rebuild points at the current vault copy",
+      path.resolve(rebuiltTarget) === path.resolve(VAULT_A, ".obsidian", "plugins", "templater-obsidian"),
+      rebuiltTarget
+    );
+
+    await expectThrows(
+      "rebuild without a same-named source is rejected",
+      () => plugin.rebuildTargetLink("plugins", "gone-plugin", VAULT_D),
+      "没有同名资源"
+    );
+    await expectThrows(
+      "rebuild on a non-link is rejected",
+      () => T.rebuildLink(
+        path.join(VAULT_D, ".obsidian", "plugins", "copied-plugin"),
+        path.join(VAULT_A, ".obsidian", "plugins", "dataview"),
+        "dir",
+        plugin.t.bind(plugin),
+        () => {}
+      ).then((outcome) => {
+        if (outcome.status !== "rebuilt") throw new Error(outcome.message);
+      }),
+      "已经不是链接"
+    );
+
+    await expectThrows(
+      "rebuild on a healthy link is rejected",
+      () => plugin.rebuildTargetLink("plugins", "dataview", VAULT_D),
+      "有效目标"
+    );
+    await expectThrows(
+      "deleting a healthy link is rejected",
+      () => plugin.deleteTargetLink("plugins", "dataview", VAULT_D),
+      "有效目标"
+    );
+
+    // Delete a broken link with no source, cleaning the target config
+    const deleted = await plugin.deleteTargetLink("plugins", "gone-plugin", VAULT_D);
+    check("delete removes the link", !fs.existsSync(path.join(VAULT_D, ".obsidian", "plugins", "gone-plugin")));
+    eq("delete reports removed plugin ids", deleted.config.pluginsRemoved, ["gone-plugin"]);
+    eq(
+      "delete cleans community-plugins.json only for the removed id",
+      readJson(path.join(VAULT_D, ".obsidian", "community-plugins.json")),
+      ["other-plugin", "ghost-unreachable"]
+    );
+    check(
+      "delete backs up community-plugins.json",
+      fs.existsSync(path.join(VAULT_D, ".obsidian", "community-plugins.json.bak"))
+    );
+
+    // Delete the broken theme link: cssTheme follows
+    const deletedTheme = await plugin.deleteTargetLink("themes", "Ghost Theme", VAULT_D);
+    eq("delete reports the cleared theme", deletedTheme.config.themeCleared, "Ghost Theme");
+    const appearanceAfterTheme = readJson(path.join(VAULT_D, ".obsidian", "appearance.json"));
+    check("cssTheme cleared", appearanceAfterTheme.cssTheme === undefined, JSON.stringify(appearanceAfterTheme));
+    eq("other appearance fields untouched", appearanceAfterTheme.enabledCssSnippets, ["ghost", "other-snippet"]);
+
+    // Delete the broken snippet link: enabledCssSnippets follows
+    const deletedSnippet = await plugin.deleteTargetLink("snippets", "ghost.css", VAULT_D);
+    eq("delete reports removed snippet names", deletedSnippet.config.snippetsRemoved, ["ghost"]);
+    eq(
+      "delete cleans enabledCssSnippets only for the removed name",
+      readJson(path.join(VAULT_D, ".obsidian", "appearance.json")).enabledCssSnippets,
+      ["other-snippet"]
+    );
+
+    // Unreachable links stay untouched by design (UI disables the actions)
+    if (unreachableLinkCreated) {
+      check(
+        "unreachable link survives scan",
+        !!fs.lstatSync(path.join(VAULT_D, ".obsidian", "plugins", "ghost-unreachable")).isSymbolicLink()
+      );
+    }
+  }
+
+  // --- Known vault registry list (shape only; machine independent) ---------
+  plugin.settings.targetVaultPath = VAULT_B;
+  const known = await plugin.listKnownVaults();
+  check("listKnownVaults returns a vault list", Array.isArray(known.vaults) && typeof known.ok === "boolean");
+  check(
+    "listKnownVaults pins the saved path first",
+    known.vaults.length > 0 && path.resolve(known.vaults[0].path) === path.resolve(VAULT_B),
+    JSON.stringify(known.vaults.slice(0, 2))
+  );
+
+  await expectThrows(
+    "browseTargetVault reports a missing Electron dialog",
+    () => plugin.browseTargetVault(),
+    "不支持系统文件夹对话框"
+  );
+
+  const zhKeys = Object.keys(Ctor.__test.TEXT.zh).sort();
+  const enKeys = Object.keys(Ctor.__test.TEXT.en).sort();
+  check("zh/en text key sets are identical", JSON.stringify(zhKeys) === JSON.stringify(enKeys));
+
   // --- Quick sanity on the exported class ---------------------------------
   check("plugin is an instance of the stubbed Plugin", plugin instanceof require("obsidian").Plugin);
 
@@ -300,3 +513,4 @@ main().catch((error) => {
   console.error("TEST CRASH", error);
   process.exit(2);
 });
+
