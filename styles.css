@@ -486,16 +486,21 @@
   padding: 0;
 }
 
-/* ---- link health section ------------------------------------------------- */
+/* ---- target vault check section ------------------------------------------ */
 
-.plugin-share-linker-health-head {
+.plugin-share-linker-target-check-head {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
 }
 
-.plugin-share-linker-health-badge {
+/* The toolbar helper's 96px min-width is too wide for this one button in the section head. */
+.plugin-share-linker-target-check-head .plugin-share-linker-toolbar-button {
+  min-width: 0;
+}
+
+.plugin-share-linker-target-check-badge {
   padding: 1px 8px;
   border: 1px solid var(--text-error);
   border-radius: 10px;
@@ -504,96 +509,57 @@
   white-space: nowrap;
 }
 
-.plugin-share-linker-health-badge.is-clear {
+.plugin-share-linker-target-check-badge.is-clear {
   border-color: var(--text-success);
   color: var(--text-success);
 }
 
-.plugin-share-linker-health-badge.is-hidden {
+.plugin-share-linker-target-check-badge.is-hidden {
   display: none;
 }
 
-.plugin-share-linker-health-status {
+.plugin-share-linker-target-check-status {
   color: var(--text-muted);
   font-size: var(--font-ui-smaller);
 }
 
-.plugin-share-linker-health-summary {
+.plugin-share-linker-target-check-summary {
   color: var(--text-muted);
   font-size: var(--font-ui-smaller);
 }
 
-.plugin-share-linker-health-bulk {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.plugin-share-linker-health-result {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.plugin-share-linker-health-group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.plugin-share-linker-health-group-title {
-  font-size: var(--font-ui-smaller);
-  font-weight: 600;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.plugin-share-linker-health-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: flex-start;
-  justify-content: space-between;
-  padding: 8px 10px;
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 6px;
-  background: var(--background-primary);
-}
-
-.plugin-share-linker-health-main {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-  flex: 1 1 220px;
-}
-
-.plugin-share-linker-health-title {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-  font-weight: 600;
-}
-
-.plugin-share-linker-health-actions {
+/* Per-section actions (rebuild all / delete all) shown right under the toolbar. */
+.plugin-share-linker-target-check-inline {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   align-items: center;
 }
 
-.plugin-share-linker-health-hint {
+.plugin-share-linker-target-check-inline:empty {
+  display: none;
+}
+
+/* Inline actions inside a paired row's target cell. */
+.plugin-share-linker-target-check-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin-top: 2px;
+}
+
+.plugin-share-linker-target-check-hint {
   color: var(--text-faint);
   font-size: var(--font-ui-smaller);
+  line-height: 1.45;
 }
 
-.plugin-share-linker-health-button {
+.plugin-share-linker-target-check-button {
   font-size: var(--font-ui-smaller);
 }
 
-.plugin-share-linker-health-button.is-danger {
+.plugin-share-linker-target-check-button.is-danger {
   color: var(--text-error);
 }
 
@@ -677,6 +643,99 @@
   padding-left: 20px;
   max-height: 40vh;
   overflow: auto;
+  font-size: var(--font-ui-smaller);
+  word-break: break-all;
+}
+
+/* ---- Obsidian settings section ------------------------------------------- */
+
+.plugin-share-linker-settings-list {
+  display: grid;
+  gap: 6px;
+}
+
+.plugin-share-linker-settings-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 10px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  background: var(--background-primary);
+  cursor: help;
+}
+
+.plugin-share-linker-settings-row:hover {
+  background: var(--background-secondary);
+}
+
+.plugin-share-linker-settings-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.plugin-share-linker-settings-title {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  font-weight: 600;
+}
+
+.plugin-share-linker-settings-desc {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.plugin-share-linker-settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin-left: auto;
+}
+
+.plugin-share-linker-settings-share-one {
+  font-size: var(--font-ui-smaller);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.plugin-share-linker-settings-chip-same {
+  border-color: var(--text-success);
+  color: var(--text-success);
+}
+
+.plugin-share-linker-settings-chip-checking {
+  color: var(--text-muted);
+}
+
+.plugin-share-linker-settings-chip-diff {
+  border-color: var(--text-warning, var(--text-error));
+  color: var(--text-warning, var(--text-error));
+}
+
+.plugin-share-linker-settings-chip-missing,
+.plugin-share-linker-settings-chip-no-source,
+.plugin-share-linker-settings-chip-unknown,
+.plugin-share-linker-settings-chip-unreadable {
+  color: var(--text-faint);
+}
+
+.plugin-share-linker-settings-results {
+  margin-top: 10px;
+}
+
+.plugin-share-linker-settings-confirm-file {
+  margin-bottom: 4px;
+}
+
+.plugin-share-linker-settings-keys {
+  color: var(--text-muted);
   font-size: var(--font-ui-smaller);
   word-break: break-all;
 }

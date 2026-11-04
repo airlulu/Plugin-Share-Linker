@@ -4,6 +4,21 @@ const path = require("path");
 
 const CONFIG_DIR_NAME = ".obsidian";
 const PAGE_SIZES = [5, 10, 20, 50];
+const SETTING_FILES = [
+  { id: "app", fileName: "app.json" },
+  { id: "appearance", fileName: "appearance.json" },
+  { id: "hotkeys", fileName: "hotkeys.json" },
+  { id: "core-plugins", fileName: "core-plugins.json" },
+  { id: "graph", fileName: "graph.json" },
+  { id: "templates", fileName: "templates.json" },
+  { id: "daily-notes", fileName: "daily-notes.json" },
+  { id: "zk-prefixer", fileName: "zk-prefixer.json" },
+];
+const SETTING_FILE_KEY_EXCLUSIONS = {
+  // The theme and the enabled-snippet list are written by the theme / snippet controls.
+  appearance: ["cssTheme", "enabledCssSnippets"],
+};
+const VAULT_BOUND_KEYS = ["attachmentFolderPath", "newFileLocation", "userIgnoreFilters"];
 const TARGET_ACCESS_TIMEOUT_MS = 15000;
 const SYMLINK_TIMEOUT_MS = 20000;
 const ACTION_TIMEOUT_MS = 300000;
@@ -16,6 +31,7 @@ const DEFAULT_SETTINGS = {
   targetThemeName: "",
   selectedSnippetNames: [],
   enabledSnippetNames: [],
+  selectedSettingFiles: [],
   pageSize: 10,
   language: "zh",
 };
@@ -137,58 +153,71 @@ const TEXT = {
     pickerCancel: "取消",
     pickerBrowseUnsupported: "当前环境不支持系统文件夹对话框，请手动输入路径，或从已知库里选择。",
     pickerBrowseFailed: (message) => `打开系统文件夹对话框失败：${message}`,
-    healthTitle: "目标库链接健康",
-    healthDetect: "检测链接",
-    healthDetectTitle: "扫描目标库 plugins / themes / snippets 下的软链接，找出失效与源库不可达的项",
-    healthHint: "检测是手动的：点上面的按钮才会访问目标库，避免目标库失联时卡住设置页。",
-    healthNotScanned: "尚未检测。点「检测链接」扫描目标库 .obsidian 下的 plugins / themes / snippets。",
-    healthChecking: "正在检测…",
-    healthBadge: (broken, unreachable) =>
+    targetCheckTitle: "目标库检测",
+    targetCheckDetect: "检测",
+    targetCheckDetectTitle: "扫描目标库 plugins / themes / snippets 下的链接与 8 份设置文件，找出失效链接与设置差异",
+    targetCheckSectionHint:
+      "检测是手动的：点「检测」才会访问目标库，一次同时扫描目标库 .obsidian 下的链接与 8 份设置文件，避免目标库失联时卡住设置页。",
+    targetCheckNotScanned: "尚未检测。点「检测」扫描目标库的链接与设置文件。",
+    targetCheckChecking: "正在检测…",
+    targetCheckBadge: (broken, unreachable) =>
       unreachable > 0 ? `${broken} 个失效 · ${unreachable} 个不可达` : `${broken} 个失效`,
-    healthBadgeNone: "未发现失效链接",
-    healthSummary: (total, links, healthy, broken, unreachable, copies) =>
+    targetCheckBadgeNone: "未发现失效链接",
+    targetCheckSummary: (total, links, healthy, broken, unreachable, copies) =>
       `共 ${total} 项：${links} 个链接（${healthy} 健康、${broken} 失效、${unreachable} 源库不可达），${copies} 个实体副本。`,
-    healthGroupTitle: (label, count) => `${label}（${count}）`,
-    healthPointsTo: (target) => `指向 ${target}`,
-    healthUnreachableHint: (root) => `先挂载源库（${root}）再检测。`,
-    healthRebuild: "重建链接",
-    healthRebuildTitle: "把链接重新指向当前库里的同名资源",
-    healthDelete: "删除链接",
-    healthDeleteTitle: "删除目标库里的这个失效链接，并清理目标库启用记录里的对应项",
-    healthRebuildAll: "全部重建",
-    healthRebuildAllTitle: "重建所有「当前库有同名资源」的失效链接",
-    healthDeleteAll: "全部删除",
-    healthDeleteAllTitle: "删除所有「当前库没有同名资源」的失效链接",
-    healthRebuilt: (name, from, to) => `${name}：已重建链接（原指向 ${from} → 新指向 ${to}）`,
-    healthRebuiltLine: (from, to) => `原指向 ${from} → 新指向 ${to}`,
-    healthRebuildFailed: (name, message) => `${name}：重建失败——${message}`,
-    healthRebuildRestored: "旧链接已恢复。",
-    healthRebuildNotRestored: "旧链接未能恢复，请检查目标位置。",
-    healthDeleted: (name) => `已删除链接：${name}`,
-    healthDeletedWithConfig: (name, config) => `已删除链接：${name}；${config}`,
-    healthConfigUnchanged: "目标库启用记录没有需要清理的条目。",
-    healthConfigRemovedPlugins: (count) => `从 community-plugins.json 移除 ${count} 个插件 ID`,
-    healthConfigRemovedSnippets: (count) => `从 enabledCssSnippets 移除 ${count} 个片段名`,
-    healthConfigClearedTheme: (theme) => `cssTheme 已清空（原为 ${theme}）`,
-    healthConfigFailed: (message) => `链接已删除，但清理目标库配置失败：${message}`,
-    healthConfigJoined: (parts) => parts.join("，"),
-    healthNoticeFound: (broken, unreachable) => `检测完成：${broken} 个失效、${unreachable} 个源库不可达。`,
-    healthNoticeClear: "检测完成：未发现失效链接。",
-    healthFailed: (message) => `链接检测失败：${message}`,
-    healthDeleteFailed: (message) => `删除链接失败：${message}`,
-    healthNotLink: (path) => `${path} 已经不是链接，已跳过。`,
-    healthLinkHealthy: "这个链接现在指向有效目标，已跳过（重新检测即可刷新状态）。",
-    healthNoSource: (name) => `当前库没有同名资源，无法重建：${name}`,
-    healthBulkConfirmRebuild: "确认重建以下链接？",
-    healthBulkConfirmDelete: "确认删除以下链接？",
-    healthConfirmRebuildWarning:
+    targetCheckSettingsSummary: (same, diff, missing) =>
+      `设置文件：相同 ${same}、有差异 ${diff}、缺失 ${missing}。`,
+    targetCheckStatusDone: (broken, unreachable, same, diff, missing) =>
+      `检测完成：${broken} 个失效、${unreachable} 个源库不可达；设置文件 ${same} 份相同、${diff} 份有差异、${missing} 份缺失。`,
+    targetCheckStatusClear: "检测完成：未发现失效链接；设置文件全部相同。",
+    targetCheckFailed: (segment, message) => `${segment}检测失败：${message}`,
+    targetCheckFailedKept: (segment, message, time) => `${segment}检测失败：${message}（以下为 ${time} 的结果）`,
+    targetCheckUpdatedSegments: (segments, time) => `${segments}已更新到 ${time}`,
+    targetCheckSegmentLinks: "链接",
+    targetCheckSegmentSettings: "设置文件",
+    targetCheckStaleSettings: (time) => `设置文件尚未检测（链接结果来自 ${time}）。`,
+    targetCheckStaleLinks: (time) => `链接尚未检测（设置结果来自 ${time}）。`,
+    targetCheckShareItem: "共享此项",
+    targetCheckShareItemTitle: "只共享这一份设置文件（先确认要覆盖的键）",
+    targetCheckPointsTo: (target) => `指向 ${target}`,
+    targetCheckUnreachableHint: (root) => `先挂载源库（${root}）再检测。`,
+    targetCheckRebuild: "重建链接",
+    targetCheckRebuildTitle: "把链接重新指向当前库里的同名资源",
+    targetCheckDelete: "删除链接",
+    targetCheckDeleteTitle: "删除目标库里的这个失效链接，并清理目标库启用记录里的对应项",
+    targetCheckRebuildAll: "全部重建",
+    targetCheckRebuildAllTitle: "重建所有「当前库有同名资源」的失效链接",
+    targetCheckDeleteAll: "全部删除",
+    targetCheckDeleteAllTitle: "删除所有「当前库没有同名资源」的失效链接",
+    targetCheckRebuilt: (name, from, to) => `${name}：已重建链接（原指向 ${from} → 新指向 ${to}）`,
+    targetCheckRebuiltLine: (from, to) => `原指向 ${from} → 新指向 ${to}`,
+    targetCheckRebuildFailed: (name, message) => `${name}：重建失败——${message}`,
+    targetCheckRebuildRestored: "旧链接已恢复。",
+    targetCheckRebuildNotRestored: "旧链接未能恢复，请检查目标位置。",
+    targetCheckDeleted: (name) => `已删除链接：${name}`,
+    targetCheckDeletedWithConfig: (name, config) => `已删除链接：${name}；${config}`,
+    targetCheckConfigUnchanged: "目标库启用记录没有需要清理的条目。",
+    targetCheckConfigRemovedPlugins: (count) => `从 community-plugins.json 移除 ${count} 个插件 ID`,
+    targetCheckConfigRemovedSnippets: (count) => `从 enabledCssSnippets 移除 ${count} 个片段名`,
+    targetCheckConfigClearedTheme: (theme) => `cssTheme 已清空（原为 ${theme}）`,
+    targetCheckConfigFailed: (message) => `链接已删除，但清理目标库配置失败：${message}`,
+    targetCheckConfigJoined: (parts) => parts.join("，"),
+    targetCheckNoticeFound: (broken, unreachable) => `检测完成：${broken} 个失效、${unreachable} 个源库不可达。`,
+    targetCheckNoticeClear: "检测完成：未发现失效链接。",
+    targetCheckDeleteFailed: (message) => `删除链接失败：${message}`,
+    targetCheckNotLink: (path) => `${path} 已经不是链接，已跳过。`,
+    targetCheckLinkHealthy: "这个链接现在指向有效目标，已跳过（重新检测即可刷新状态）。",
+    targetCheckNoSource: (name) => `当前库没有同名资源，无法重建：${name}`,
+    targetCheckBulkConfirmRebuild: "确认重建以下链接？",
+    targetCheckBulkConfirmDelete: "确认删除以下链接？",
+    targetCheckConfirmRebuildWarning:
       "重建会先删掉旧链接，再创建指向当前库同名资源的新链接（绝对路径）。若创建失败会尝试恢复旧链接。",
-    healthConfirmDeleteWarning:
+    targetCheckConfirmDeleteWarning:
       "删除会移除目标库里的链接本身，并清理 community-plugins.json、appearance.json（enabledCssSnippets / cssTheme）里对应的条目；物理资源不会被删除。写前会备份为 .bak。",
-    healthConfirmOk: "确认",
-    healthConfirmCancel: "取消",
-    healthBulkRebuildDone: (ok, failed) => `全部重建完成：成功 ${ok}，失败 ${failed}。`,
-    healthBulkDeleteDone: (ok, failed) => `全部删除完成：成功 ${ok}，失败 ${failed}。`,
+    targetCheckConfirmOk: "确认",
+    targetCheckConfirmCancel: "取消",
+    targetCheckBulkRebuildDone: (ok, failed) => `全部重建完成：成功 ${ok}，失败 ${failed}。`,
+    targetCheckBulkDeleteDone: (ok, failed) => `全部删除完成：成功 ${ok}，失败 ${failed}。`,
     pairHeadSource: "当前 Vault",
     pairHeadTarget: "目标库",
     pairPlaceholderSource: "当前库无同名项",
@@ -202,6 +231,76 @@ const TEXT = {
     "targetState.unshared": "未共享",
     "targetState.unknown": "未检测",
     "targetState.copyHint": "目标库里的同名项是实体副本，不来自当前库。",
+    sectionSettings: "Obsidian 设置",
+    settingsCount: (total, selected) => `已发现 ${total} 份设置文件，已勾选 ${selected} 份。`,
+    settingsShare: "共享设置",
+    settingsShareTitle: "把勾选的设置文件写入目标库（先展示将要覆盖的键）",
+    settingsSelectAllTitle: "选中全部设置文件",
+    settingsClearAllTitle: "清空设置文件勾选",
+    settingsSharing: "正在共享设置…",
+    settingsSelectRequired: "请至少选择一份设置文件。",
+    settingsHint:
+      "共享设置只写目标库 .obsidian 下的设置文件：按顶层键合并，源文件里出现的键覆盖目标库同名键，目标库独有的键保留；写前备份为 .bak 并原子替换。外观文件不含启用列表与当前主题；workspace / bookmarks / community-plugins 不参与共享。目标库的设置状态见上方「目标库检测」：检测后在这里勾选要共享的文件，把鼠标移到文件行上可看差异详情。建议先关闭目标库的 Obsidian。",
+    settingsTooltipSame: "与目标库一致：所有共享键都相同。",
+    settingsTooltipMissing: (count) => `目标库没有这个文件；共享时会写入 ${count} 个键。`,
+    settingsTooltipUnknown: "尚未检测。点上方「目标库检测」里的「检测」后再看差异。",
+    settingsTooltipNoSource: "当前库没有这个文件，无法共享。",
+    settingsTooltipSourceParseError: (message) => `当前库这份文件不是合法 JSON，无法共享：${message}`,
+    settingsTooltipParseError: (message) => `目标文件不是合法 JSON：${message}；共享时会整体重写并备份原文件。`,
+    settingsTooltipHeader: (fileName, changed, added, removed) => {
+      const parts = [`覆盖 ${changed} 个键`];
+      if (added > 0) parts.push(`新增 ${added} 个键`);
+      if (removed > 0) parts.push(`目标库独有 ${removed} 个键（不会删除）`);
+      return `${fileName}：${parts.join("，")}`;
+    },
+    settingsTooltipChanged: (pairs) => `覆盖：${pairs}`,
+    settingsTooltipAdded: (pairs) => `新增：${pairs}`,
+    settingsTooltipRemoved: (keys) => `目标库独有（不会删除）：${keys}`,
+    settingsTooltipPair: (key, from, to) => `${key}：${from} → ${to}`,
+    settingsTooltipAddedPair: (key, to) => `${key}：${to}`,
+    settingsConfirmTitle: "确认共享这些设置？",
+    settingsConfirmHint: "以下键会被源库的值覆盖；目标文件写前备份为 .bak。",
+    settingsConfirmFile: (file, changed, added) => `${file}：覆盖 ${changed} 个键，新增 ${added} 个键`,
+    settingsConfirmUnchanged: (file) => `${file}：无变化`,
+    settingsConfirmOverwriteKeys: (keys) => `覆盖：${keys}`,
+    settingsConfirmAddKeys: (keys) => `新增：${keys}`,
+    settingsConfirmOk: "确认共享",
+    settingsSourceParseWarning: (file) => `${file} 不是合法 JSON，已跳过该文件。`,
+    settingsCoreEnabled: (names) => `将启用核心插件：${names}`,
+    settingsCoreDisabled: (names) => `将停用核心插件：${names}`,
+    settingsCoreNone: "核心插件开关无变化。",
+    settingsVaultBoundWarning:
+      "注意：attachmentFolderPath / newFileLocation / userIgnoreFilters 属于库绑定键，共享后会改变目标库的文件存放与搜索可见性；仍会写入，请确认这是想要的。",
+    settingsVaultBoundLine: (warning, keys) => `${warning}（${keys}）`,
+    listSeparator: "、",
+    sentenceSeparator: "；",
+    settingsHotkeyConflict: (combo, from, to) => `快捷键冲突：${combo}（源库命令 ${from}，目标库命令 ${to}）`,
+    settingsHotkeyConflictInternal: (combo, a, b) => `快捷键冲突：${combo}（源库内 ${a} 与 ${b} 重复）`,
+    settingsNoConflict: "未发现快捷键冲突。",
+    settingsResultTitle: "设置共享结果",
+    settingsResultSummary: (written, unchanged, failed) => `已写 ${written} 份，无变化 ${unchanged} 份，失败 ${failed} 份。`,
+    settingsResultFile: (file, total, changed, added) =>
+      `${file}：已写 ${total} 个键（覆盖 ${changed} / 新增 ${added}）`,
+    settingsResultUnchanged: (file) => `${file}：无变化`,
+    settingsResultFailed: (file, message) => `${file}：失败——${message}`,
+    settingsResultCore: (enabled, disabled) => `目标库核心插件：启用 ${enabled} 个、停用 ${disabled} 个。`,
+    settingsResultBackups: (count) => `已备份 ${count} 份原文件（.bak）。`,
+    settingsRestartHint: "目标库重启 Obsidian（或 Ctrl/Cmd+R）后生效。",
+    "settingsState.unknown": "未检测",
+    "settingsState.checking": "检测中…",
+    "settingsState.same": "相同",
+    "settingsState.diff": (count) => `有差异 ${count} 个键`,
+    "settingsState.missing": "缺失",
+    "settingsState.noSource": "源库无此文件",
+    "settingsState.unreadable": "无法读取",
+    "settingsFile.app": "编辑器与文件行为",
+    "settingsFile.appearance": "外观（不含启用列表与当前主题）",
+    "settingsFile.hotkeys": "快捷键",
+    "settingsFile.core-plugins": "核心插件开关",
+    "settingsFile.graph": "关系图谱参数",
+    "settingsFile.templates": "模板插件设置",
+    "settingsFile.daily-notes": "日记插件设置",
+    "settingsFile.zk-prefixer": "ZK 前缀插件设置",
   },
   en: {
     commandOpen: "Open share panel",
@@ -320,58 +419,73 @@ const TEXT = {
     pickerCancel: "Cancel",
     pickerBrowseUnsupported: "The system folder dialog is unavailable here; type the path or pick a known vault.",
     pickerBrowseFailed: (message) => `Could not open the system folder dialog: ${message}`,
-    healthTitle: "Target link health",
-    healthDetect: "Check links",
-    healthDetectTitle: "Scan symlinks under the target vault's plugins / themes / snippets for broken and unreachable ones",
-    healthHint: "Detection is manual: the target vault is only touched when you press the button, so a missing drive cannot stall the settings page.",
-    healthNotScanned: "Not checked yet. Press Check links to scan plugins / themes / snippets under the target vault's .obsidian.",
-    healthChecking: "Checking…",
-    healthBadge: (broken, unreachable) =>
+    targetCheckTitle: "Target vault check",
+    targetCheckDetect: "Check",
+    targetCheckDetectTitle:
+      "Scan links under plugins / themes / snippets and the 8 settings files in the target vault for broken links and settings differences",
+    targetCheckSectionHint:
+      "Detection is manual: the target vault is only touched when you press Check, and one run scans both the links and the 8 settings files, so a missing drive cannot stall the settings page.",
+    targetCheckNotScanned: "Not checked yet. Press Check to scan the target vault's links and settings files.",
+    targetCheckChecking: "Checking…",
+    targetCheckBadge: (broken, unreachable) =>
       unreachable > 0 ? `${broken} broken · ${unreachable} unreachable` : `${broken} broken`,
-    healthBadgeNone: "No broken links",
-    healthSummary: (total, links, healthy, broken, unreachable, copies) =>
+    targetCheckBadgeNone: "No broken links",
+    targetCheckSummary: (total, links, healthy, broken, unreachable, copies) =>
       `${total} items: ${links} links (${healthy} healthy, ${broken} broken, ${unreachable} unreachable), ${copies} physical copies.`,
-    healthGroupTitle: (label, count) => `${label} (${count})`,
-    healthPointsTo: (target) => `Points to ${target}`,
-    healthUnreachableHint: (root) => `Mount the source vault (${root}) and check again.`,
-    healthRebuild: "Rebuild link",
-    healthRebuildTitle: "Point the link back at the same-named item in the current vault",
-    healthDelete: "Delete link",
-    healthDeleteTitle: "Delete this broken link and remove its entry from the target vault's enable records",
-    healthRebuildAll: "Rebuild all",
-    healthRebuildAllTitle: "Rebuild every broken link that has a same-named item in the current vault",
-    healthDeleteAll: "Delete all",
-    healthDeleteAllTitle: "Delete every broken link that has no same-named item in the current vault",
-    healthRebuilt: (name, from, to) => `${name}: link rebuilt (was ${from} → now ${to})`,
-    healthRebuiltLine: (from, to) => `Was ${from} → now ${to}`,
-    healthRebuildFailed: (name, message) => `${name}: rebuild failed — ${message}`,
-    healthRebuildRestored: "The old link was restored.",
-    healthRebuildNotRestored: "The old link could not be restored; check the target location.",
-    healthDeleted: (name) => `Deleted link: ${name}`,
-    healthDeletedWithConfig: (name, config) => `Deleted link: ${name}; ${config}`,
-    healthConfigUnchanged: "No enable-record entries needed cleaning.",
-    healthConfigRemovedPlugins: (count) => `removed ${count} plugin ID(s) from community-plugins.json`,
-    healthConfigRemovedSnippets: (count) => `removed ${count} snippet name(s) from enabledCssSnippets`,
-    healthConfigClearedTheme: (theme) => `cleared cssTheme (was ${theme})`,
-    healthConfigFailed: (message) => `The link was deleted, but cleaning the target config failed: ${message}`,
-    healthConfigJoined: (parts) => parts.join(", "),
-    healthNoticeFound: (broken, unreachable) => `Check complete: ${broken} broken, ${unreachable} unreachable.`,
-    healthNoticeClear: "Check complete: no broken links.",
-    healthFailed: (message) => `Link check failed: ${message}`,
-    healthDeleteFailed: (message) => `Could not delete the link: ${message}`,
-    healthNotLink: (path) => `${path} is no longer a link; skipped.`,
-    healthLinkHealthy: "This link now points at a valid target; skipped (run the check again to refresh the state).",
-    healthNoSource: (name) => `No same-named item in the current vault to rebuild from: ${name}`,
-    healthBulkConfirmRebuild: "Rebuild these links?",
-    healthBulkConfirmDelete: "Delete these links?",
-    healthConfirmRebuildWarning:
+    targetCheckSettingsSummary: (same, diff, missing) =>
+      `Settings: ${same} same, ${diff} different, ${missing} missing.`,
+    targetCheckStatusDone: (broken, unreachable, same, diff, missing) =>
+      `Check complete: ${broken} broken, ${unreachable} unreachable; settings ${same} same, ${diff} different, ${missing} missing.`,
+    targetCheckStatusClear: "Check complete: no broken links; all settings files match.",
+    targetCheckFailed: (segment, message) => `${segment} check failed: ${message}`,
+    targetCheckFailedKept: (segment, message, time) =>
+      `${segment} check failed: ${message} (showing the ${time} result)`,
+    targetCheckUpdatedSegments: (segments, time) => `${segments} updated to ${time}`,
+    targetCheckSegmentLinks: "Links",
+    targetCheckSegmentSettings: "Settings files",
+    targetCheckStaleSettings: (time) => `Settings files not checked yet (link result from ${time}).`,
+    targetCheckStaleLinks: (time) => `Links not checked yet (settings result from ${time}).`,
+    targetCheckShareItem: "Share this file",
+    targetCheckShareItemTitle: "Share only this settings file (the keys about to change are shown first)",
+    targetCheckPointsTo: (target) => `Points to ${target}`,
+    targetCheckUnreachableHint: (root) => `Mount the source vault (${root}) and check again.`,
+    targetCheckRebuild: "Rebuild link",
+    targetCheckRebuildTitle: "Point the link back at the same-named item in the current vault",
+    targetCheckDelete: "Delete link",
+    targetCheckDeleteTitle: "Delete this broken link and remove its entry from the target vault's enable records",
+    targetCheckRebuildAll: "Rebuild all",
+    targetCheckRebuildAllTitle: "Rebuild every broken link that has a same-named item in the current vault",
+    targetCheckDeleteAll: "Delete all",
+    targetCheckDeleteAllTitle: "Delete every broken link that has no same-named item in the current vault",
+    targetCheckRebuilt: (name, from, to) => `${name}: link rebuilt (was ${from} → now ${to})`,
+    targetCheckRebuiltLine: (from, to) => `Was ${from} → now ${to}`,
+    targetCheckRebuildFailed: (name, message) => `${name}: rebuild failed — ${message}`,
+    targetCheckRebuildRestored: "The old link was restored.",
+    targetCheckRebuildNotRestored: "The old link could not be restored; check the target location.",
+    targetCheckDeleted: (name) => `Deleted link: ${name}`,
+    targetCheckDeletedWithConfig: (name, config) => `Deleted link: ${name}; ${config}`,
+    targetCheckConfigUnchanged: "No enable-record entries needed cleaning.",
+    targetCheckConfigRemovedPlugins: (count) => `removed ${count} plugin ID(s) from community-plugins.json`,
+    targetCheckConfigRemovedSnippets: (count) => `removed ${count} snippet name(s) from enabledCssSnippets`,
+    targetCheckConfigClearedTheme: (theme) => `cleared cssTheme (was ${theme})`,
+    targetCheckConfigFailed: (message) => `The link was deleted, but cleaning the target config failed: ${message}`,
+    targetCheckConfigJoined: (parts) => parts.join(", "),
+    targetCheckNoticeFound: (broken, unreachable) => `Check complete: ${broken} broken, ${unreachable} unreachable.`,
+    targetCheckNoticeClear: "Check complete: no broken links.",
+    targetCheckDeleteFailed: (message) => `Could not delete the link: ${message}`,
+    targetCheckNotLink: (path) => `${path} is no longer a link; skipped.`,
+    targetCheckLinkHealthy: "This link now points at a valid target; skipped (run the check again to refresh the state).",
+    targetCheckNoSource: (name) => `No same-named item in the current vault to rebuild from: ${name}`,
+    targetCheckBulkConfirmRebuild: "Rebuild these links?",
+    targetCheckBulkConfirmDelete: "Delete these links?",
+    targetCheckConfirmRebuildWarning:
       "Rebuilding deletes the old link first, then creates a new one pointing at the same-named item in the current vault (absolute path). If creating it fails, the old link is restored.",
-    healthConfirmDeleteWarning:
+    targetCheckConfirmDeleteWarning:
       "Deleting removes the link itself and cleans the matching entries in community-plugins.json and appearance.json (enabledCssSnippets / cssTheme); physical resources are not touched. The file is backed up to .bak first.",
-    healthConfirmOk: "Confirm",
-    healthConfirmCancel: "Cancel",
-    healthBulkRebuildDone: (ok, failed) => `Rebuild all done: ${ok} succeeded, ${failed} failed.`,
-    healthBulkDeleteDone: (ok, failed) => `Delete all done: ${ok} succeeded, ${failed} failed.`,
+    targetCheckConfirmOk: "Confirm",
+    targetCheckConfirmCancel: "Cancel",
+    targetCheckBulkRebuildDone: (ok, failed) => `Rebuild all done: ${ok} succeeded, ${failed} failed.`,
+    targetCheckBulkDeleteDone: (ok, failed) => `Delete all done: ${ok} succeeded, ${failed} failed.`,
     pairHeadSource: "Current Vault",
     pairHeadTarget: "Target",
     pairPlaceholderSource: "No same-named item here",
@@ -385,6 +499,79 @@ const TEXT = {
     "targetState.unshared": "Not shared",
     "targetState.unknown": "Not checked",
     "targetState.copyHint": "The same-named item in the target is a physical copy, not from this vault.",
+    sectionSettings: "Obsidian settings",
+    settingsCount: (total, selected) => `${total} settings files found, ${selected} selected.`,
+    settingsShare: "Share settings",
+    settingsShareTitle: "Write the checked settings files to the target vault (the keys about to change are shown first)",
+    settingsSelectAllTitle: "Select every settings file",
+    settingsClearAllTitle: "Clear all settings file selections",
+    settingsSharing: "Sharing settings…",
+    settingsSelectRequired: "Select at least one settings file.",
+    settingsHint:
+      "Sharing settings only writes settings files under the target vault's .obsidian: keys merge at the top level, so keys present in the source override the target's and keys only in the target stay; each file is backed up to .bak and replaced atomically. Appearance excludes the enabled snippet list and the current theme; workspace / bookmarks / community-plugins are never shared. The target vault's settings state is shown in Target vault check above: tick the files you want to share here, then hover a file row to see the differences. Close Obsidian in the target vault first.",
+    settingsTooltipSame: "Matches the target vault: all shared keys are identical.",
+    settingsTooltipMissing: (count) => `The target vault has no such file; sharing will write ${count} keys.`,
+    settingsTooltipUnknown: "Not checked yet. Press Check in Target vault check above to see the differences.",
+    settingsTooltipNoSource: "This vault has no such file, so it cannot be shared.",
+    settingsTooltipSourceParseError: (message) => `This vault's copy is not valid JSON, so it cannot be shared: ${message}`,
+    settingsTooltipParseError: (message) =>
+      `The target file is not valid JSON: ${message}; sharing will rewrite it and back up the original.`,
+    settingsTooltipHeader: (fileName, changed, added, removed) => {
+      const parts = [`${changed} overwritten`];
+      if (added > 0) parts.push(`${added} added`);
+      if (removed > 0) parts.push(`${removed} target-only kept`);
+      return `${fileName}: ${parts.join(", ")}`;
+    },
+    settingsTooltipChanged: (pairs) => `Overwrite: ${pairs}`,
+    settingsTooltipAdded: (pairs) => `Add: ${pairs}`,
+    settingsTooltipRemoved: (keys) => `Target-only (kept): ${keys}`,
+    settingsTooltipPair: (key, from, to) => `${key}: ${from} → ${to}`,
+    settingsTooltipAddedPair: (key, to) => `${key}: ${to}`,
+    settingsConfirmTitle: "Share these settings?",
+    settingsConfirmHint: "These keys will be overwritten by the source values; the target files are backed up to .bak first.",
+    settingsConfirmFile: (file, changed, added) => `${file}: ${changed} key(s) overwritten, ${added} added`,
+    settingsConfirmUnchanged: (file) => `${file}: no change`,
+    settingsConfirmOverwriteKeys: (keys) => `Overwritten: ${keys}`,
+    settingsConfirmAddKeys: (keys) => `Added: ${keys}`,
+    settingsConfirmOk: "Share",
+    settingsSourceParseWarning: (file) => `${file} is not valid JSON; the file was skipped.`,
+    settingsCoreEnabled: (names) => `Core plugins to enable: ${names}`,
+    settingsCoreDisabled: (names) => `Core plugins to disable: ${names}`,
+    settingsCoreNone: "No core plugin toggles change.",
+    settingsVaultBoundWarning:
+      "Note: attachmentFolderPath / newFileLocation / userIgnoreFilters are vault-bound keys; sharing them changes where the target vault stores files and which notes stay hidden. They are still written.",
+    settingsVaultBoundLine: (warning, keys) => `${warning} (${keys})`,
+    listSeparator: ", ",
+    sentenceSeparator: "; ",
+    settingsHotkeyConflict: (combo, from, to) =>
+      `Hotkey conflict: ${combo} (source command ${from}, target command ${to})`,
+    settingsHotkeyConflictInternal: (combo, a, b) => `Hotkey conflict: ${combo} (bound to ${a} and ${b} in the source)`,
+    settingsNoConflict: "No hotkey conflicts found.",
+    settingsResultTitle: "Settings shared",
+    settingsResultSummary: (written, unchanged, failed) =>
+      `Written ${written}, unchanged ${unchanged}, failed ${failed}.`,
+    settingsResultFile: (file, total, changed, added) =>
+      `${file}: ${total} key(s) written (${changed} overwritten / ${added} added)`,
+    settingsResultUnchanged: (file) => `${file}: no change`,
+    settingsResultFailed: (file, message) => `${file}: failed — ${message}`,
+    settingsResultCore: (enabled, disabled) => `Target core plugins: ${enabled} enabled, ${disabled} disabled.`,
+    settingsResultBackups: (count) => `${count} original file(s) backed up (.bak).`,
+    settingsRestartHint: "Restart Obsidian in the target vault (or press Ctrl/Cmd+R) to apply.",
+    "settingsState.unknown": "Not checked",
+    "settingsState.checking": "Checking…",
+    "settingsState.same": "Same",
+    "settingsState.diff": (count) => `Different (${count} keys)`,
+    "settingsState.missing": "Missing",
+    "settingsState.noSource": "Not in this vault",
+    "settingsState.unreadable": "Unreadable",
+    "settingsFile.app": "Editor and file behaviour",
+    "settingsFile.appearance": "Appearance (not the snippet list or current theme)",
+    "settingsFile.hotkeys": "Hotkeys",
+    "settingsFile.core-plugins": "Core plugin toggles",
+    "settingsFile.graph": "Graph view settings",
+    "settingsFile.templates": "Templates plugin settings",
+    "settingsFile.daily-notes": "Daily notes plugin settings",
+    "settingsFile.zk-prefixer": "ZK prefixer plugin settings",
   },
 };
 
@@ -482,6 +669,7 @@ module.exports = class PluginShareLinker extends Plugin {
     settings.selectedThemeNames = normalizeStringArray(settings.selectedThemeNames);
     settings.selectedSnippetNames = normalizeStringArray(settings.selectedSnippetNames);
     settings.enabledSnippetNames = normalizeStringArray(settings.enabledSnippetNames);
+    settings.selectedSettingFiles = normalizeStringArray(settings.selectedSettingFiles);
   }
 
   async saveSettings() {
@@ -614,6 +802,76 @@ module.exports = class PluginShareLinker extends Plugin {
     }
 
     return snippets.sort(compareByName);
+  }
+
+  getCurrentConfigDirPath() {
+    const vaultPath = this.getCurrentVaultPath();
+    if (!vaultPath) return "";
+    return path.join(vaultPath, this.getConfigDir());
+  }
+
+  async readCurrentSettingFiles() {
+    const configDir = this.getCurrentConfigDirPath();
+    const rows = [];
+
+    for (const def of SETTING_FILES) {
+      const row = {
+        id: def.id,
+        fileName: def.fileName,
+        exists: false,
+        value: {},
+        parseError: null,
+        sourcePath: "",
+      };
+      if (configDir) {
+        row.sourcePath = path.join(configDir, def.fileName);
+        const read = await readJsonFile(row.sourcePath, {});
+        row.exists = read.existed;
+        row.parseError = read.parseError;
+        row.value = isPlainObject(read.value) ? read.value : {};
+      }
+      rows.push(row);
+    }
+
+    return rows;
+  }
+
+  async detectTargetSettings(targetVaultPath) {
+    if (!normalizePathInput(targetVaultPath)) throw new Error(this.t("targetRequired"));
+    const target = await this.resolveTargetVault(targetVaultPath);
+    const sources = await this.readCurrentSettingFiles();
+    const statuses = await scanTargetSettings(target.configDir, sources);
+    this.debug("settings", `detect done files=${Object.keys(statuses).length}`);
+    return { target, statuses, detectedAt: Date.now() };
+  }
+
+  async planSettingsShare(fileIds, targetVaultPath) {
+    if (!normalizePathInput(targetVaultPath)) throw new Error(this.t("targetRequired"));
+    const selected = new Set(normalizeStringArray(fileIds));
+    const sources = (await this.readCurrentSettingFiles()).filter((row) => selected.has(row.id) && row.exists);
+    if (sources.length === 0) throw new Error(this.t("settingsSelectRequired"));
+
+    const target = await this.resolveTargetVault(targetVaultPath);
+    const plan = await buildSettingsSharePlan(target.configDir, sources);
+    this.debug(
+      "settings",
+      `plan files=${plan.files.length} conflicts=${plan.hotkeyConflicts.length} coreEnabled=${plan.corePlugins.enabled.length} coreDisabled=${plan.corePlugins.disabled.length}`
+    );
+    return { target, plan };
+  }
+
+  async applySettingsPlan(target, plan) {
+    const outcome = await applySettingsSharePlan(target.configDir, plan, this.t.bind(this), this.debug.bind(this));
+    this.debug(
+      "settings",
+      outcome.results.map((result) => `${result.fileName}:${result.status}`).join(", ") || "nothing to write"
+    );
+    logDebug("share settings", {
+      target: target.configDir,
+      written: outcome.results.filter((result) => result.status === "written").length,
+      failed: outcome.results.filter((result) => result.status === "error").length,
+    });
+    return outcome;
   }
 
   async resolveTargetVault(targetVaultPath) {
@@ -766,7 +1024,7 @@ module.exports = class PluginShareLinker extends Plugin {
 
   async scanTargetVault(targetVaultPath) {
     const startedAt = Date.now();
-    this.debug("health", "scan start");
+    this.debug("targetCheck", "scan start");
     const target = await this.resolveTargetVault(targetVaultPath);
     const scanned = await runWithTimeout(
       () => scanTargetConfigDirs(target.configDir),
@@ -775,7 +1033,7 @@ module.exports = class PluginShareLinker extends Plugin {
     );
     const elapsedMs = Date.now() - startedAt;
     this.debug(
-      "health",
+      "targetCheck",
       `scan done links=${scanned.summary.totalLinks} broken=${scanned.summary.broken} unreachable=${scanned.summary.unreachable} copies=${scanned.summary.copies} elapsed=${elapsedMs}ms`
     );
     return {
@@ -808,13 +1066,13 @@ module.exports = class PluginShareLinker extends Plugin {
     const entryPath = path.join(target.configDir, kind, name);
     const existing = await fs.promises.lstat(entryPath).catch(() => null);
     if (!existing || !existing.isSymbolicLink()) {
-      throw new Error(this.t("healthNotLink", entryPath));
+      throw new Error(this.t("targetCheckNotLink", entryPath));
     }
     const validTarget = await fs.promises.stat(entryPath).catch(() => null);
-    if (validTarget) throw new Error(this.t("healthLinkHealthy"));
+    if (validTarget) throw new Error(this.t("targetCheckLinkHealthy"));
 
     const source = await this.findSameNameSource(kind, name);
-    if (!source) throw new Error(this.t("healthNoSource", name));
+    if (!source) throw new Error(this.t("targetCheckNoSource", name));
 
     const outcome = await rebuildLink(
       entryPath,
@@ -823,7 +1081,7 @@ module.exports = class PluginShareLinker extends Plugin {
       this.t.bind(this),
       this.debug.bind(this)
     );
-    this.debug("health", `rebuild ${kind}/${name} ${outcome.status} ${outcome.oldTarget} -> ${outcome.newTarget}`);
+    this.debug("targetCheck", `rebuild ${kind}/${name} ${outcome.status} ${outcome.oldTarget} -> ${outcome.newTarget}`);
     return { kind, name, source: source.sourcePath, ...outcome };
   }
 
@@ -832,16 +1090,16 @@ module.exports = class PluginShareLinker extends Plugin {
     const entryPath = path.join(target.configDir, kind, name);
     const existing = await fs.promises.lstat(entryPath).catch(() => null);
     if (!existing || !existing.isSymbolicLink()) {
-      throw new Error(this.t("healthNotLink", entryPath));
+      throw new Error(this.t("targetCheckNotLink", entryPath));
     }
     const validTarget = await fs.promises.stat(entryPath).catch(() => null);
-    if (validTarget) throw new Error(this.t("healthLinkHealthy"));
+    if (validTarget) throw new Error(this.t("targetCheckLinkHealthy"));
 
     const linkTarget = await fs.promises.readlink(entryPath).catch(() => null);
     try {
       await fs.promises.rm(entryPath, { force: true });
     } catch (error) {
-      throw new Error(this.t("healthDeleteFailed", error.message));
+      throw new Error(this.t("targetCheckDeleteFailed", error.message));
     }
 
     const removed = { pluginIds: [], snippetNames: [], themeNames: [] };
@@ -853,7 +1111,7 @@ module.exports = class PluginShareLinker extends Plugin {
     try {
       config = await cleanEnabledRecords(target.configDir, removed, this.t.bind(this), this.debug.bind(this));
     } catch (error) {
-      this.debug("health", `clean records failed: ${error.message}`);
+      this.debug("targetCheck", `clean records failed: ${error.message}`);
       config = {
         error: error.message,
         pluginsRemoved: [],
@@ -864,7 +1122,7 @@ module.exports = class PluginShareLinker extends Plugin {
       };
     }
 
-    this.debug("health", `delete ${kind}/${name} target=${linkTarget}`);
+    this.debug("targetCheck", `delete ${kind}/${name} target=${linkTarget}`);
     return { kind, name, linkTarget, config };
   }
 
@@ -1047,9 +1305,17 @@ class PluginShareLinkerSettingTab extends PluginSettingTab {
     this.themeActionSeen = false;
     this.busy = false;
     this.targetInventory = null;
-    this.healthBusy = false;
-    this.healthMessage = "";
-    this.healthError = "";
+    this.targetCheckBusy = false;
+    this.targetScanAt = 0;
+    this.settingsCheckAt = 0;
+    this.targetScanError = "";
+    this.settingsCheckError = "";
+    this.targetScanToken = 0;
+    this.settingsCheckToken = 0;
+    this.targetCheckRunId = 0;
+    this.settingFiles = [];
+    this.settingStatuses = null;
+    this.settingResults = null;
   }
 
   async display() {
@@ -1086,7 +1352,7 @@ class PluginShareLinkerSettingTab extends PluginSettingTab {
           .onChange(async (value) => {
             this.plugin.settings.targetVaultPath = value;
             await this.plugin.saveSettings();
-            this.invalidateTargetInventory();
+            this.invalidateAllResults();
           });
         text.inputEl.addClass("plugin-share-linker-path-input");
       });
@@ -1109,7 +1375,8 @@ class PluginShareLinkerSettingTab extends PluginSettingTab {
       .onClick(() => this.checkTargetPath());
     setToolbarButtonLabel(checkButton, t("checkTarget"), t("checkTargetTitle"));
 
-    this.buildLinkHealthSection(containerEl);
+    this.buildTargetCheckSection(containerEl);
+    this.buildSettingsSection(containerEl);
     this.buildPluginsSection(containerEl);
     this.buildThemesSection(containerEl);
     this.buildSnippetsSection(containerEl);
@@ -1125,6 +1392,7 @@ class PluginShareLinkerSettingTab extends PluginSettingTab {
     this.pluginsCountEl = section.bodyEl.createDiv("plugin-share-linker-count");
     this.pluginsToolbarEl = section.bodyEl.createDiv("plugin-share-linker-toolbar");
     this.pluginsPaginationEl = section.bodyEl.createDiv("plugin-share-linker-pagination");
+    this.pluginsTargetCheckEl = section.bodyEl.createDiv("plugin-share-linker-target-check-inline");
     this.renderStatusLegend(section.bodyEl);
     this.createPairHead(section.bodyEl);
     this.pluginsListEl = section.bodyEl.createDiv("plugin-share-linker-list");
@@ -1163,6 +1431,7 @@ class PluginShareLinkerSettingTab extends PluginSettingTab {
     const section = createSection(containerEl, t("sectionThemes"));
     this.themesCountEl = section.bodyEl.createDiv("plugin-share-linker-count");
     this.themesToolbarEl = section.bodyEl.createDiv("plugin-share-linker-toolbar");
+    this.themesTargetCheckEl = section.bodyEl.createDiv("plugin-share-linker-target-check-inline");
     this.createPairHead(section.bodyEl);
     this.themesListEl = section.bodyEl.createDiv("plugin-share-linker-list");
 
@@ -1179,11 +1448,420 @@ class PluginShareLinkerSettingTab extends PluginSettingTab {
     const section = createSection(containerEl, t("sectionSnippets"));
     this.snippetsCountEl = section.bodyEl.createDiv("plugin-share-linker-count");
     this.snippetsToolbarEl = section.bodyEl.createDiv("plugin-share-linker-toolbar");
+    this.snippetsTargetCheckEl = section.bodyEl.createDiv("plugin-share-linker-target-check-inline");
     this.createPairHead(section.bodyEl);
     this.snippetsListEl = section.bodyEl.createDiv("plugin-share-linker-list");
     section.bodyEl.createDiv("plugin-share-linker-hint").setText(t("snippetEnableHint"));
 
     this.addActionButtons(this.snippetsToolbarEl, "snippets");
+  }
+
+  buildSettingsSection(containerEl) {
+    const t = this.plugin.t.bind(this.plugin);
+    const section = createSection(containerEl, t("sectionSettings"));
+    this.settingsCountEl = section.bodyEl.createDiv("plugin-share-linker-count");
+    this.settingsToolbarEl = section.bodyEl.createDiv("plugin-share-linker-toolbar");
+
+    const selectAllButton = new ButtonComponent(this.settingsToolbarEl)
+      .setIcon("check-square")
+      .onClick(async () => {
+        // Only files that exist in the current vault can be shared; ticking the rest does nothing.
+        this.plugin.settings.selectedSettingFiles = this.getSettingRows()
+          .filter((row) => row.exists)
+          .map((row) => row.id);
+        await this.plugin.saveSettings();
+        this.renderSettings();
+      });
+    setToolbarButtonLabel(selectAllButton, t("selectAll"), t("settingsSelectAllTitle"));
+
+    const clearButton = new ButtonComponent(this.settingsToolbarEl)
+      .setIcon("square")
+      .onClick(async () => {
+        this.plugin.settings.selectedSettingFiles = [];
+        await this.plugin.saveSettings();
+        this.renderSettings();
+      });
+    setToolbarButtonLabel(clearButton, t("clear"), t("settingsClearAllTitle"));
+
+    const shareButton = new ButtonComponent(this.settingsToolbarEl)
+      .setIcon("upload")
+      .setCta()
+      .onClick(async () => {
+        await this.runSettingsShareAction();
+      });
+    this.settingsShareButton = shareButton;
+    setToolbarButtonLabel(shareButton, t("settingsShare"), t("settingsShareTitle"));
+
+    section.bodyEl.createDiv("plugin-share-linker-hint").setText(t("settingsHint"));
+    this.settingsListEl = section.bodyEl.createDiv("plugin-share-linker-settings-list");
+    this.settingsResultEl = section.bodyEl.createDiv("plugin-share-linker-settings-results");
+    this.renderSettings();
+  }
+
+  getSettingRows() {
+    if (Array.isArray(this.settingFiles) && this.settingFiles.length > 0) return this.settingFiles;
+    return SETTING_FILES.map((def) => ({
+      id: def.id,
+      fileName: def.fileName,
+      exists: false,
+      value: {},
+      parseError: null,
+      sourcePath: "",
+    }));
+  }
+
+  selectedSettingIds() {
+    const known = new Set(this.getSettingRows().map((row) => row.id));
+    return this.plugin.settings.selectedSettingFiles.filter((id) => known.has(id));
+  }
+
+  settingStatusesSummary() {
+    const summary = { same: 0, diff: 0, missing: 0 };
+    if (!this.settingStatuses) return summary;
+
+    for (const row of this.getSettingRows()) {
+      if (!row.exists || row.parseError) continue;
+      const status = this.settingStatuses[row.id];
+      if (!status) continue;
+      if (summary[status.state] !== undefined) summary[status.state] += 1;
+    }
+    return summary;
+  }
+
+  settingChipState(row) {
+    const t = this.plugin.t.bind(this.plugin);
+    if (!row.exists) return { key: "no-source", text: t("settingsState.noSource") };
+    if (row.parseError) return { key: "unreadable", text: t("settingsState.unreadable") };
+    if (this.targetCheckBusy && !this.settingStatuses) {
+      return { key: "checking", text: t("settingsState.checking") };
+    }
+    const status = this.settingStatuses ? this.settingStatuses[row.id] : null;
+    if (!status) return { key: "unknown", text: t("settingsState.unknown") };
+    if (status.state === "same") return { key: "same", text: t("settingsState.same") };
+    if (status.state === "diff") return { key: "diff", text: t("settingsState.diff", status.count) };
+    return { key: "missing", text: t("settingsState.missing") };
+  }
+
+  settingsTooltip(row) {
+    const t = this.plugin.t.bind(this.plugin);
+    if (!row.exists) return t("settingsTooltipNoSource");
+    if (row.parseError) return t("settingsTooltipSourceParseError", row.parseError);
+    const status = this.settingStatuses ? this.settingStatuses[row.id] : null;
+    if (!status) return t("settingsTooltipUnknown");
+    if (status.state === "same") return t("settingsTooltipSame");
+    if (status.state === "missing") return t("settingsTooltipMissing", status.count);
+
+    const changed = Array.isArray(status.changed) ? status.changed : [];
+    const added = Array.isArray(status.added) ? status.added : [];
+    const removed = Array.isArray(status.removed) ? status.removed : [];
+    const lines = [t("settingsTooltipHeader", row.fileName, changed.length, added.length, removed.length)];
+
+    if (changed.length > 0) {
+      const pairs = changed.map((item) =>
+        t("settingsTooltipPair", item.key, formatSettingValue(item.from), formatSettingValue(item.to))
+      );
+      lines.push(t("settingsTooltipChanged", this.formatSettingsKeys(pairs)));
+    }
+    if (added.length > 0) {
+      const pairs = added.map((item) => t("settingsTooltipAddedPair", item.key, formatSettingValue(item.to)));
+      lines.push(t("settingsTooltipAdded", this.formatSettingsKeys(pairs)));
+    }
+    if (removed.length > 0) {
+      lines.push(t("settingsTooltipRemoved", this.formatSettingsKeys(removed)));
+    }
+    if (status.parseError) lines.push(t("settingsTooltipParseError", status.parseError));
+    return lines.join("\n");
+  }
+
+  renderSettings() {
+    if (!this.settingsListEl || !this.settingsCountEl) return;
+
+    const t = this.plugin.t.bind(this.plugin);
+    const rows = this.getSettingRows();
+    const selectedIds = this.selectedSettingIds();
+    const selected = new Set(selectedIds);
+
+    this.settingsCountEl.setText(t("settingsCount", rows.length, selected.size));
+    if (this.settingsShareButton) this.settingsShareButton.setDisabled(selected.size === 0 || this.busy);
+
+    this.settingsListEl.empty();
+    for (const row of rows) {
+      this.renderSettingRow(row, selected);
+    }
+  }
+
+  renderSettingRow(row, selected) {
+    const t = this.plugin.t.bind(this.plugin);
+    const rowEl = this.settingsListEl.createDiv("plugin-share-linker-settings-row");
+
+    const labelEl = rowEl.createEl("label", { cls: "plugin-share-linker-check" });
+    const boxEl = labelEl.createEl("input", { type: "checkbox" });
+    labelEl.createSpan({ text: t("share") });
+    boxEl.checked = selected.has(row.id);
+    boxEl.addEventListener("change", async () => {
+      const next = new Set(this.selectedSettingIds());
+      if (boxEl.checked) next.add(row.id);
+      else next.delete(row.id);
+      this.plugin.settings.selectedSettingFiles = Array.from(next);
+      await this.plugin.saveSettings();
+      this.renderSettings();
+    });
+
+    const contentEl = rowEl.createDiv("plugin-share-linker-settings-content");
+    const titleEl = contentEl.createDiv("plugin-share-linker-settings-title");
+    titleEl.createEl("code", { text: row.fileName });
+    const chip = this.settingChipState(row);
+    titleEl.createSpan({
+      cls: `plugin-share-linker-target-chip plugin-share-linker-settings-chip-${chip.key}`,
+      text: chip.text,
+    });
+    contentEl.createDiv("plugin-share-linker-settings-desc").setText(t(`settingsFile.${row.id}`));
+
+    if (row.exists) {
+      const actionsEl = rowEl.createDiv("plugin-share-linker-settings-actions");
+      const shareOneButton = actionsEl.createEl("button", {
+        cls: "plugin-share-linker-settings-share-one",
+        text: t("targetCheckShareItem"),
+      });
+      shareOneButton.title = t("targetCheckShareItemTitle");
+      shareOneButton.setAttribute("aria-label", t("targetCheckShareItem"));
+      shareOneButton.disabled = this.busy;
+      shareOneButton.addEventListener("click", () => this.runSettingsShareAction([row.id]));
+    }
+
+    const tooltip = this.settingsTooltip(row);
+    if (tooltip) {
+      rowEl.title = tooltip;
+      rowEl.setAttribute("title", tooltip);
+    }
+  }
+
+  formatSettingsKeys(keys) {
+    const list = Array.isArray(keys) ? keys : [];
+    const shown = list.slice(0, 8);
+    return shown.join(this.plugin.t("listSeparator")) + (list.length > shown.length ? "…" : "");
+  }
+
+  hotkeyConflictText(conflict) {
+    const t = this.plugin.t.bind(this.plugin);
+    return conflict.internal
+      ? t("settingsHotkeyConflictInternal", conflict.combo, conflict.sourceCommand, conflict.targetCommand)
+      : t("settingsHotkeyConflict", conflict.combo, conflict.sourceCommand, conflict.targetCommand);
+  }
+
+  async runSettingsShareAction(fileIds) {
+    if (this.busy) return;
+
+    const t = this.plugin.t.bind(this.plugin);
+    const requested = normalizeStringArray(fileIds);
+    const ids = requested.length > 0 ? requested : this.selectedSettingIds();
+    if (ids.length === 0) {
+      this.showError(t("settingsSelectRequired"));
+      return;
+    }
+
+    this.busy = true;
+    this.plugin.beginDebugSession("plan-settings");
+    this.renderTargetCheck();
+    const startedAt = Date.now();
+    this.setStatusMessage(t("busyProgress", t("settingsSharing"), 0));
+    const ticker = setInterval(() => {
+      if (!this.busy) return;
+      const seconds = Math.round((Date.now() - startedAt) / 1000);
+      this.setStatusMessage(t("busyProgress", t("settingsSharing"), seconds));
+      this.plugin.debug("tick", `settings-plan ${seconds}s`);
+    }, 1000);
+
+    let planned = null;
+    try {
+      planned = await runWithTimeout(
+        () => this.plugin.planSettingsShare(ids, this.plugin.settings.targetVaultPath),
+        45 * 1000,
+        t("actionTimeout", 45)
+      );
+    } catch (error) {
+      const message = error && error.message ? error.message : String(error);
+      this.plugin.debug("settings", `plan failed: ${message}`);
+      this.showError(message);
+      this.renderDebugTrail();
+      new Notice(t("shareFailed", message));
+    } finally {
+      this.busy = false;
+      clearInterval(ticker);
+      this.renderSettings();
+      this.renderTargetCheck();
+    }
+
+    if (planned) {
+      this.renderResults();
+      this.openSettingsConfirm(planned);
+    }
+  }
+
+  openSettingsConfirm({ target, plan }) {
+    const t = this.plugin.t.bind(this.plugin);
+    const files = plan.files.map((file) => {
+      const touched = file.changed.length + file.added.length;
+      const details = [];
+      if (file.changed.length > 0) {
+        details.push(t("settingsConfirmOverwriteKeys", this.formatSettingsKeys(file.changed)));
+      }
+      if (file.added.length > 0) details.push(t("settingsConfirmAddKeys", this.formatSettingsKeys(file.added)));
+      return {
+        summary:
+          touched === 0
+            ? t("settingsConfirmUnchanged", file.fileName)
+            : t("settingsConfirmFile", file.fileName, file.changed.length, file.added.length),
+        details: details.join(t("sentenceSeparator")),
+      };
+    });
+
+    const modal = new SettingsConfirmModal(this.app, {
+      title: t("settingsConfirmTitle"),
+      hint: t("settingsConfirmHint"),
+      files,
+      warnings: [
+        ...plan.sourceWarnings.map((file) => t("settingsSourceParseWarning", file)),
+        ...plan.warnings.map((filePath) => t("configParseWarning", filePath)),
+      ],
+      coreEnabled:
+        plan.sawCorePlugins && plan.corePlugins.enabled.length > 0
+          ? t("settingsCoreEnabled", plan.corePlugins.enabled.join(t("listSeparator")))
+          : "",
+      coreDisabled:
+        plan.sawCorePlugins && plan.corePlugins.disabled.length > 0
+          ? t("settingsCoreDisabled", plan.corePlugins.disabled.join(t("listSeparator")))
+          : "",
+      conflicts: plan.hotkeyConflicts.map((conflict) => this.hotkeyConflictText(conflict)),
+      vaultWarning:
+        plan.vaultBoundKeys.length > 0
+          ? t("settingsVaultBoundLine", t("settingsVaultBoundWarning"), this.formatSettingsKeys(plan.vaultBoundKeys))
+          : "",
+      confirmLabel: t("settingsConfirmOk"),
+      cancelLabel: t("pickerCancel"),
+      onConfirm: () => {
+        this.executeSettingsShare({ target, plan });
+      },
+    });
+    modal.open();
+  }
+
+  async executeSettingsShare({ target, plan }) {
+    if (this.busy) return;
+
+    const t = this.plugin.t.bind(this.plugin);
+    this.busy = true;
+    this.plugin.beginDebugSession("share-settings");
+    this.renderTargetCheck();
+    const startedAt = Date.now();
+    this.setStatusMessage(t("busyProgress", t("settingsSharing"), 0));
+    const ticker = setInterval(() => {
+      if (!this.busy) return;
+      const seconds = Math.round((Date.now() - startedAt) / 1000);
+      this.setStatusMessage(t("busyProgress", t("settingsSharing"), seconds));
+      this.plugin.debug("tick", `settings-write ${seconds}s`);
+    }, 1000);
+
+    try {
+      const outcome = await runWithTimeout(
+        () => this.plugin.applySettingsPlan(target, plan),
+        ACTION_TIMEOUT_MS,
+        t("actionTimeout", Math.round(ACTION_TIMEOUT_MS / 1000))
+      );
+      this.settingResults = { target, plan, results: outcome.results };
+      // Settings files changed in the target: their statuses are stale, the link scan is not.
+      this.invalidateSettingsResults();
+      this.renderSettingsResults();
+      this.renderResults();
+
+      const written = outcome.results.filter((result) => result.status === "written").length;
+      const failed = outcome.results.filter((result) => result.status === "error").length;
+      new Notice(t("settingsResultSummary", written, outcome.results.length - written - failed, failed));
+      this.plugin.debug("settings", `share done written=${written} failed=${failed}`);
+    } catch (error) {
+      const message = error && error.message ? error.message : String(error);
+      this.plugin.debug("settings", `share failed: ${message}`);
+      this.showError(message);
+      this.renderDebugTrail();
+      new Notice(t("shareFailed", message));
+    } finally {
+      this.busy = false;
+      clearInterval(ticker);
+      this.renderSettings();
+      this.renderTargetCheck();
+    }
+  }
+
+  renderSettingsResults() {
+    if (!this.settingsResultEl) return;
+
+    const t = this.plugin.t.bind(this.plugin);
+    this.settingsResultEl.empty();
+    if (!this.settingResults) return;
+
+    const { plan, results } = this.settingResults;
+    const written = results.filter((result) => result.status === "written").length;
+    const failed = results.filter((result) => result.status === "error").length;
+    const unchanged = results.filter((result) => result.status === "unchanged").length;
+
+    const cardEl = this.settingsResultEl.createDiv("plugin-share-linker-result-card");
+    cardEl.createDiv("plugin-share-linker-result-title").setText(t("settingsResultTitle"));
+    const linesEl = cardEl.createDiv("plugin-share-linker-result-lines");
+    linesEl.createDiv("plugin-share-linker-result-line").setText(t("settingsResultSummary", written, unchanged, failed));
+
+    for (const result of results) {
+      const lineEl = linesEl.createDiv("plugin-share-linker-result-line");
+      if (result.status === "written") {
+        lineEl.setText(
+          t(
+            "settingsResultFile",
+            result.fileName,
+            result.changed.length + result.added.length,
+            result.changed.length,
+            result.added.length
+          )
+        );
+      } else if (result.status === "unchanged") {
+        lineEl.setText(t("settingsResultUnchanged", result.fileName));
+      } else {
+        lineEl.addClass("plugin-share-linker-result-error");
+        lineEl.setText(t("settingsResultFailed", result.fileName, result.message || ""));
+      }
+    }
+
+    if (plan.sawCorePlugins) {
+      if (plan.corePlugins.enabled.length === 0 && plan.corePlugins.disabled.length === 0) {
+        linesEl.createDiv("plugin-share-linker-config-line").setText(t("settingsCoreNone"));
+      } else {
+        linesEl
+          .createDiv("plugin-share-linker-config-line")
+          .setText(t("settingsResultCore", plan.corePlugins.enabled.length, plan.corePlugins.disabled.length));
+      }
+    }
+
+    if (plan.sawHotkeys) {
+      if (plan.hotkeyConflicts.length === 0) {
+        linesEl.createDiv("plugin-share-linker-config-line").setText(t("settingsNoConflict"));
+      } else {
+        for (const conflict of plan.hotkeyConflicts) {
+          linesEl.createDiv("plugin-share-linker-warning").setText(this.hotkeyConflictText(conflict));
+        }
+      }
+    }
+
+    if (plan.vaultBoundKeys.length > 0) {
+      linesEl
+        .createDiv("plugin-share-linker-warning")
+        .setText(t("settingsVaultBoundLine", t("settingsVaultBoundWarning"), this.formatSettingsKeys(plan.vaultBoundKeys)));
+    }
+
+    const backups = results.filter((result) => result.backupPath).length;
+    if (backups > 0) {
+      linesEl.createDiv("plugin-share-linker-config-line").setText(t("settingsResultBackups", backups));
+    }
+    if (written > 0) {
+      linesEl.createDiv("plugin-share-linker-restart-hint").setText(t("settingsRestartHint"));
+    }
   }
 
   createPairHead(containerEl) {
@@ -1206,11 +1884,35 @@ class PluginShareLinkerSettingTab extends PluginSettingTab {
     if (row.target && row.target.rebuiltFrom) {
       cellEl
         .createDiv("plugin-share-linker-target-path")
-        .setText(t("healthRebuiltLine", row.target.rebuiltFrom, row.target.absoluteTarget || ""));
+        .setText(t("targetCheckRebuiltLine", row.target.rebuiltFrom, row.target.absoluteTarget || ""));
     } else if (state.detail) {
-      cellEl.createDiv("plugin-share-linker-target-path").createEl("code", { text: t("healthPointsTo", state.detail) });
+      cellEl.createDiv("plugin-share-linker-target-path").createEl("code", { text: t("targetCheckPointsTo", state.detail) });
     } else if (row.target && row.target.status === "copy") {
       cellEl.createDiv("plugin-share-linker-target-path").setText(t("targetState.copyHint"));
+    }
+
+    if (row.target && row.target.status === "unreachable") {
+      const root = row.target.absoluteTarget
+        ? path.parse(row.target.absoluteTarget).root || row.target.absoluteTarget
+        : "?";
+      cellEl.createDiv("plugin-share-linker-target-check-hint").setText(t("targetCheckUnreachableHint", root));
+    } else if (row.target && row.target.status === "broken") {
+      const actionsEl = cellEl.createDiv("plugin-share-linker-target-check-row-actions");
+      if (this.hasSameNameSource(row.kind, row.name)) {
+        this.createTargetCheckButton(
+          actionsEl,
+          t("targetCheckRebuild"),
+          t("targetCheckRebuildTitle"),
+          () => this.rebuildSingle(row.target)
+        );
+      }
+      this.createTargetCheckButton(
+        actionsEl,
+        t("targetCheckDelete"),
+        t("targetCheckDeleteTitle"),
+        () => this.deleteSingle(row.target),
+        true
+      );
     }
 
     return cellEl;
@@ -1229,23 +1931,200 @@ class PluginShareLinkerSettingTab extends PluginSettingTab {
     return legendEl;
   }
 
-  buildLinkHealthSection(containerEl) {
+  buildTargetCheckSection(containerEl) {
     const t = this.plugin.t.bind(this.plugin);
-    const section = createSection(containerEl, t("healthTitle"));
-    const headEl = section.bodyEl.createDiv("plugin-share-linker-health-head");
-    this.healthBadgeEl = headEl.createSpan({ cls: "plugin-share-linker-health-badge" });
+    const section = createSection(containerEl, t("targetCheckTitle"));
+    const headEl = section.bodyEl.createDiv("plugin-share-linker-target-check-head");
+    this.targetCheckBadgeEl = headEl.createSpan({ cls: "plugin-share-linker-target-check-badge" });
     const detectButton = new ButtonComponent(headEl)
       .setIcon("activity")
-      .onClick(() => this.checkTargetLinks());
-    setToolbarButtonLabel(detectButton, t("healthDetect"), t("healthDetectTitle"));
-    this.detectLinksButton = detectButton;
-    this.healthStatusEl = headEl.createSpan({ cls: "plugin-share-linker-health-status" });
+      .onClick(() => this.runTargetCheck());
+    setToolbarButtonLabel(detectButton, t("targetCheckDetect"), t("targetCheckDetectTitle"));
+    this.targetCheckButton = detectButton;
+    this.targetCheckStatusEl = headEl.createSpan({ cls: "plugin-share-linker-target-check-status" });
 
-    section.bodyEl.createDiv("plugin-share-linker-hint").setText(t("healthHint"));
-    this.healthSummaryEl = section.bodyEl.createDiv("plugin-share-linker-health-summary");
-    this.healthBulkEl = section.bodyEl.createDiv("plugin-share-linker-health-bulk");
-    this.healthResultEl = section.bodyEl.createDiv("plugin-share-linker-health-result");
-    this.renderLinkHealth();
+    section.bodyEl.createDiv("plugin-share-linker-hint").setText(t("targetCheckSectionHint"));
+    this.targetCheckSummaryEl = section.bodyEl.createDiv("plugin-share-linker-target-check-summary");
+    this.targetCheckSettingsSummaryEl = section.bodyEl.createDiv("plugin-share-linker-target-check-summary");
+    this.renderTargetCheck();
+  }
+
+  formatTargetCheckTime(atMs) {
+    const date = new Date(atMs || Date.now());
+    return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+  }
+
+  describeTargetCheckFailure(segment, message, atMs) {
+    const t = this.plugin.t.bind(this.plugin);
+    return atMs
+      ? t("targetCheckFailedKept", segment, message, this.formatTargetCheckTime(atMs))
+      : t("targetCheckFailed", segment, message);
+  }
+
+  composeTargetCheckDone() {
+    const t = this.plugin.t.bind(this.plugin);
+    const summary = this.targetInventory ? this.targetInventory.summary : null;
+    const settings = this.settingStatusesSummary();
+    const anomalies = summary ? summary.broken + summary.unreachable : 0;
+    const compared = this.getSettingRows().filter(
+      (row) => row.exists && !row.parseError && this.settingStatuses && this.settingStatuses[row.id]
+    );
+    const allSame =
+      compared.length > 0 && compared.every((row) => this.settingStatuses[row.id].state === "same");
+    if (anomalies === 0 && allSame && settings.diff + settings.missing === 0) {
+      return t("targetCheckStatusClear");
+    }
+    return t(
+      "targetCheckStatusDone",
+      summary ? summary.broken : 0,
+      summary ? summary.unreachable : 0,
+      settings.same,
+      settings.diff,
+      settings.missing
+    );
+  }
+
+  targetCheckStatusText() {
+    const t = this.plugin.t.bind(this.plugin);
+    if (this.targetCheckBusy) return t("targetCheckChecking");
+    const failures = [];
+    if (this.targetScanError) {
+      failures.push(
+        this.describeTargetCheckFailure(
+          t("targetCheckSegmentLinks"),
+          this.targetScanError,
+          this.targetInventory ? this.targetScanAt : 0
+        )
+      );
+    }
+    if (this.settingsCheckError) {
+      failures.push(
+        this.describeTargetCheckFailure(
+          t("targetCheckSegmentSettings"),
+          this.settingsCheckError,
+          this.settingStatuses ? this.settingsCheckAt : 0
+        )
+      );
+    }
+    if (failures.length === 0) {
+      if (this.targetInventory && this.settingStatuses) return this.composeTargetCheckDone();
+      if (this.targetInventory) return t("targetCheckStaleSettings", this.formatTargetCheckTime(this.targetScanAt));
+      if (this.settingStatuses) return t("targetCheckStaleLinks", this.formatTargetCheckTime(this.settingsCheckAt));
+      return t("targetCheckNotScanned");
+    }
+
+    const updated = [];
+    if (!this.targetScanError && this.targetInventory && this.targetScanAt) updated.push(t("targetCheckSegmentLinks"));
+    if (!this.settingsCheckError && this.settingStatuses && this.settingsCheckAt) {
+      updated.push(t("targetCheckSegmentSettings"));
+    }
+    if (updated.length > 0) {
+      const latest = Math.max(this.targetScanAt || 0, this.settingsCheckAt || 0);
+      failures.push(t("targetCheckUpdatedSegments", updated.join(t("listSeparator")), this.formatTargetCheckTime(latest)));
+    }
+    return failures.join(t("sentenceSeparator"));
+  }
+
+  renderTargetCheck() {
+    const t = this.plugin.t.bind(this.plugin);
+    const inventory = this.targetInventory;
+    const summary = inventory ? inventory.summary : null;
+
+    if (this.targetCheckBadgeEl) {
+      if (!inventory) {
+        this.targetCheckBadgeEl.setText("");
+        this.targetCheckBadgeEl.addClass("is-hidden");
+      } else {
+        const found = summary.broken + summary.unreachable;
+        this.targetCheckBadgeEl.removeClass("is-hidden");
+        this.targetCheckBadgeEl.setText(
+          found > 0 ? t("targetCheckBadge", summary.broken, summary.unreachable) : t("targetCheckBadgeNone")
+        );
+        if (found === 0) this.targetCheckBadgeEl.addClass("is-clear");
+        else this.targetCheckBadgeEl.removeClass("is-clear");
+      }
+    }
+    if (this.targetCheckStatusEl) this.targetCheckStatusEl.setText(this.targetCheckStatusText());
+    if (this.targetCheckButton && typeof this.targetCheckButton.setDisabled === "function") {
+      this.targetCheckButton.setDisabled(this.targetCheckBusy || this.busy);
+    }
+
+    if (this.targetCheckSummaryEl) {
+      this.targetCheckSummaryEl.empty();
+      if (inventory) {
+        this.targetCheckSummaryEl.setText(
+          t(
+            "targetCheckSummary",
+            summary.total,
+            summary.totalLinks,
+            summary.healthy,
+            summary.broken,
+            summary.unreachable,
+            summary.copies
+          ) +
+            " " +
+            t("targetCheckElapsed", inventory.elapsedMs)
+        );
+      }
+    }
+    if (this.targetCheckSettingsSummaryEl) {
+      this.targetCheckSettingsSummaryEl.empty();
+      if (this.settingStatuses) {
+        const settings = this.settingStatusesSummary();
+        this.targetCheckSettingsSummaryEl.setText(
+          t("targetCheckSettingsSummary", settings.same, settings.diff, settings.missing)
+        );
+      }
+    }
+  }
+
+  renderKindTargetCheckActions(kind) {
+    const containerEl =
+      kind === "plugins" ? this.pluginsTargetCheckEl : kind === "themes" ? this.themesTargetCheckEl : this.snippetsTargetCheckEl;
+    if (!containerEl) return;
+    const t = this.plugin.t.bind(this.plugin);
+    containerEl.empty();
+    if (!this.targetInventory || !this.targetInventory.kinds) return;
+    const entries = (this.targetInventory.kinds[kind] || []).filter(
+      (entry) => entry.status === "broken" || entry.status === "unreachable"
+    );
+    if (entries.length === 0) return;
+    const rebuildable = entries.filter(
+      (entry) => entry.status === "broken" && this.hasSameNameSource(kind, entry.name)
+    );
+    const deletable = entries.filter(
+      (entry) => entry.status === "broken" && !this.hasSameNameSource(kind, entry.name)
+    );
+    if (rebuildable.length > 0) {
+      this.createTargetCheckButton(
+        containerEl,
+        t("targetCheckRebuildAll"),
+        t("targetCheckRebuildAllTitle"),
+        () => this.confirmBulkRebuild(rebuildable)
+      );
+    }
+    if (deletable.length > 0) {
+      this.createTargetCheckButton(
+        containerEl,
+        t("targetCheckDeleteAll"),
+        t("targetCheckDeleteAllTitle"),
+        () => this.confirmBulkDelete(deletable),
+        true
+      );
+    }
+  }
+
+  createTargetCheckButton(containerEl, label, title, onClick, isDanger) {
+    // Plain buttons on purpose: the toolbar helper would add its 96px min-width to these inline actions.
+    const buttonEl = containerEl.createEl("button", {
+      cls: "plugin-share-linker-target-check-button",
+      text: label,
+    });
+    buttonEl.title = title;
+    buttonEl.setAttribute("aria-label", label);
+    if (isDanger) buttonEl.addClass("is-danger");
+    buttonEl.addEventListener("click", () => onClick());
+    return buttonEl;
   }
 
   addActionButtons(containerEl, kind) {
@@ -1287,10 +2166,19 @@ class PluginShareLinkerSettingTab extends PluginSettingTab {
       this.showError(t("listReadFailed", error.message));
     }
 
+    // Settings files are optional for the resource lists: reading them must not empty those sections.
+    try {
+      this.settingFiles = await this.plugin.readCurrentSettingFiles();
+    } catch (error) {
+      this.settingFiles = [];
+      this.showError(t("listReadFailed", error.message));
+    }
+
     this.renderPlugins();
     this.renderThemes();
     this.renderSnippets();
-    this.renderLinkHealth();
+    this.renderSettings();
+    this.renderTargetCheck();
     this.renderResults();
   }
 
@@ -1316,7 +2204,7 @@ class PluginShareLinkerSettingTab extends PluginSettingTab {
         45000,
         t("actionTimeout", 45)
       );
-      this.renderTargetCheck(info);
+      this.renderTargetPathCheck(info);
       this.plugin.debug("check", `rendered elapsed=${Date.now() - startedAt}ms`);
     } catch (error) {
       const message = error && error.message ? error.message : String(error);
@@ -1327,10 +2215,11 @@ class PluginShareLinkerSettingTab extends PluginSettingTab {
     } finally {
       this.busy = false;
       clearInterval(ticker);
+      this.renderTargetCheck();
     }
   }
 
-  renderTargetCheck(info) {
+  renderTargetPathCheck(info) {
     if (!this.resultsEl) return;
 
     const t = this.plugin.t.bind(this.plugin);
@@ -1391,6 +2280,7 @@ class PluginShareLinkerSettingTab extends PluginSettingTab {
     );
     this.pluginsListEl.empty();
     this.renderPagination(totalPages, pageSize);
+    this.renderKindTargetCheckActions("plugins");
 
     if (rows.length === 0) {
       this.pluginsListEl.createDiv("plugin-share-linker-empty").setText(t("emptyPlugins"));
@@ -1535,6 +2425,7 @@ class PluginShareLinkerSettingTab extends PluginSettingTab {
         (targetOnlyCount > 0 ? t("targetOnlySuffix", targetOnlyCount) : "")
     );
     this.themesListEl.empty();
+    this.renderKindTargetCheckActions("themes");
 
     if (rows.length === 0) {
       this.themesListEl.createDiv("plugin-share-linker-empty").setText(t("emptyThemes"));
@@ -1640,6 +2531,7 @@ class PluginShareLinkerSettingTab extends PluginSettingTab {
         (targetOnlyCount > 0 ? t("targetOnlySuffix", targetOnlyCount) : "")
     );
     this.snippetsListEl.empty();
+    this.renderKindTargetCheckActions("snippets");
 
     if (rows.length === 0) {
       this.snippetsListEl.createDiv("plugin-share-linker-empty").setText(t("emptySnippets"));
@@ -1719,8 +2611,8 @@ class PluginShareLinkerSettingTab extends PluginSettingTab {
     this.renderSnippets();
   }
 
-  async checkTargetLinks() {
-    if (this.healthBusy || this.busy) return;
+  async runTargetCheck() {
+    if (this.targetCheckBusy || this.busy) return;
 
     const t = this.plugin.t.bind(this.plugin);
     const targetVaultPath = this.plugin.settings.targetVaultPath;
@@ -1728,207 +2620,102 @@ class PluginShareLinkerSettingTab extends PluginSettingTab {
       new Notice(t("targetRequired"));
       return;
     }
-    this.healthBusy = true;
-    this.healthMessage = t("healthChecking");
-    this.healthError = "";
-    if (this.detectLinksButton && typeof this.detectLinksButton.setDisabled === "function") {
-      this.detectLinksButton.setDisabled(true);
-    }
-    this.renderLinkHealth();
-    this.plugin.beginDebugSession("check-links");
-    this.plugin.debug("health", `start target=${targetVaultPath || "(empty)"}`);
 
-    try {
-      const scan = await this.plugin.scanTargetVault(targetVaultPath);
-      if (normalizePathInput(this.plugin.settings.targetVaultPath) !== normalizePathInput(targetVaultPath)) {
-        // The target changed while the scan was running; the result belongs to the old vault.
-        this.plugin.debug("health", "scan discarded: target changed during scan");
-        return;
-      }
-      this.targetInventory = scan;
-      this.healthMessage = "";
-      const found = scan.summary.broken + scan.summary.unreachable;
-      new Notice(
-        found > 0 ? t("healthNoticeFound", scan.summary.broken, scan.summary.unreachable) : t("healthNoticeClear")
-      );
-      this.plugin.debug("health", `done anomalies=${found}`);
-    } catch (error) {
-      const message = error && error.message ? error.message : String(error);
-      this.healthMessage = t("healthFailed", message);
-      this.healthError = this.healthMessage;
-      new Notice(this.healthMessage);
-      this.plugin.debug("health", `failed: ${message}`);
-      this.renderDebugTrail();
-    } finally {
-      this.healthBusy = false;
-      this.healthMessage = this.healthMessage === t("healthChecking") ? "" : this.healthMessage;
-      if (this.detectLinksButton && typeof this.detectLinksButton.setDisabled === "function") {
-        this.detectLinksButton.setDisabled(false);
-      }
+    this.targetCheckBusy = true;
+    this.targetScanError = "";
+    this.settingsCheckError = "";
+    this.targetScanToken += 1;
+    this.settingsCheckToken += 1;
+    const runId = ++this.targetCheckRunId;
+    const linkToken = this.targetScanToken;
+    const settingsToken = this.settingsCheckToken;
+    this.renderTargetCheck();
+    this.renderSettings();
+    this.plugin.beginDebugSession("check-target-vault");
+    this.plugin.debug("targetCheck", `start target=${targetVaultPath || "(empty)"}`);
+    const checkStartedAt = Date.now();
+
+    const targetUnchanged = () =>
+      normalizePathInput(this.plugin.settings.targetVaultPath) === normalizePathInput(targetVaultPath);
+    const stillCurrent = () => runId === this.targetCheckRunId && targetUnchanged();
+
+    // Each segment paints its own result as soon as it lands, so a slow segment never hides a ready one.
+    const renderSegment = () => {
+      if (runId !== this.targetCheckRunId) return;
       this.renderAllResourceLists();
-      this.renderLinkHealth();
-    }
-  }
+      this.renderSettings();
+      this.renderTargetCheck();
+    };
 
-  renderLinkHealth() {
-    if (!this.healthResultEl) return;
-
-    const t = this.plugin.t.bind(this.plugin);
-    const inventory = this.targetInventory;
-    const summary = inventory ? inventory.summary : null;
-
-    if (this.healthBadgeEl) {
-      if (!inventory) {
-        this.healthBadgeEl.setText("");
-        this.healthBadgeEl.addClass("is-hidden");
-      } else {
-        const found = summary.broken + summary.unreachable;
-        this.healthBadgeEl.removeClass("is-hidden");
-        this.healthBadgeEl.setText(found > 0 ? t("healthBadge", summary.broken, summary.unreachable) : t("healthBadgeNone"));
-        if (found === 0) this.healthBadgeEl.addClass("is-clear");
-        else this.healthBadgeEl.removeClass("is-clear");
-      }
-    }
-    if (this.healthStatusEl) this.healthStatusEl.setText(this.healthMessage || "");
-
-    if (this.healthSummaryEl) {
-      this.healthSummaryEl.empty();
-      if (inventory) {
-        this.healthSummaryEl.setText(
-          t(
-            "healthSummary",
-            summary.total,
-            summary.totalLinks,
-            summary.healthy,
-            summary.broken,
-            summary.unreachable,
-            summary.copies
-          ) + ` ${t("targetCheckElapsed", inventory.elapsedMs)}`
+    const linkTask = (async () => {
+      try {
+        const scan = await runWithTimeout(
+          () => this.plugin.scanTargetVault(targetVaultPath),
+          45 * 1000,
+          t("actionTimeout", 45)
         );
+        if (linkToken !== this.targetScanToken || !stillCurrent()) return;
+        this.targetInventory = scan;
+        this.targetScanAt = Date.now();
+      } catch (error) {
+        if (linkToken !== this.targetScanToken || !stillCurrent()) return;
+        this.targetScanError = error && error.message ? error.message : String(error);
+        this.plugin.debug("targetCheck", `link scan failed: ${this.targetScanError}`);
       }
-    }
+      renderSegment();
+    })();
 
-    this.healthResultEl.empty();
-    if (this.healthBulkEl) this.healthBulkEl.empty();
-
-    if (!inventory) {
-      this.healthResultEl.createDiv("plugin-share-linker-empty").setText(this.healthError || t("healthNotScanned"));
-      return;
-    }
-
-    const anomalies = { plugins: [], themes: [], snippets: [] };
-    for (const kind of TARGET_KINDS) {
-      for (const entry of inventory.kinds[kind] || []) {
-        if (entry.status === "broken" || entry.status === "unreachable") anomalies[kind].push(entry);
-      }
-    }
-    const totalAnomalies = anomalies.plugins.length + anomalies.themes.length + anomalies.snippets.length;
-
-    if (totalAnomalies === 0) {
-      this.healthResultEl.createDiv("plugin-share-linker-empty").setText(t("healthBadgeNone"));
-      return;
-    }
-
-    const rebuildable = [];
-    const deletable = [];
-    for (const kind of TARGET_KINDS) {
-      for (const entry of anomalies[kind]) {
-        if (entry.status !== "broken") continue;
-        if (this.hasSameNameSource(kind, entry.name)) rebuildable.push(entry);
-        else deletable.push(entry);
-      }
-    }
-
-    if (this.healthBulkEl) {
-      if (rebuildable.length > 0) {
-        this.createHealthButton(
-          this.healthBulkEl,
-          t("healthRebuildAll"),
-          t("healthRebuildAllTitle"),
-          () => this.confirmBulkRebuild(rebuildable)
+    const settingsTask = (async () => {
+      try {
+        const result = await runWithTimeout(
+          () => this.plugin.detectTargetSettings(targetVaultPath),
+          45 * 1000,
+          t("actionTimeout", 45)
         );
+        if (settingsToken !== this.settingsCheckToken || !stillCurrent()) return;
+        this.settingStatuses = result.statuses;
+        this.settingsCheckAt = Date.now();
+      } catch (error) {
+        if (settingsToken !== this.settingsCheckToken || !stillCurrent()) return;
+        this.settingsCheckError = error && error.message ? error.message : String(error);
+        this.plugin.debug("targetCheck", `settings check failed: ${this.settingsCheckError}`);
       }
-      if (deletable.length > 0) {
-        this.createHealthButton(
-          this.healthBulkEl,
-          t("healthDeleteAll"),
-          t("healthDeleteAllTitle"),
-          () => this.confirmBulkDelete(deletable),
-          true
-        );
-      }
-    }
+      renderSegment();
+    })();
 
-    const groups = [
-      { kind: "plugins", label: t("resultsPlugins") },
-      { kind: "themes", label: t("resultsThemes") },
-      { kind: "snippets", label: t("resultsSnippets") },
-    ];
-    for (const group of groups) {
-      const list = anomalies[group.kind];
-      if (list.length === 0) continue;
-      const groupEl = this.healthResultEl.createDiv("plugin-share-linker-health-group");
-      groupEl.createDiv("plugin-share-linker-health-group-title").setText(t("healthGroupTitle", group.label, list.length));
-      for (const entry of list) this.renderHealthRow(groupEl, entry);
-    }
-  }
+    // The two segments run independently: a slow link scan cannot hold back the settings comparison.
+    await Promise.all([linkTask, settingsTask]);
 
-  renderHealthRow(containerEl, entry) {
-    const t = this.plugin.t.bind(this.plugin);
-    const rowEl = containerEl.createDiv("plugin-share-linker-health-row");
-    const mainEl = rowEl.createDiv("plugin-share-linker-health-main");
-    const titleEl = mainEl.createDiv("plugin-share-linker-health-title");
-    titleEl.createSpan({ text: entry.name });
+    // A newer check (or a target-path change that invalidated the results) owns the state now.
+    if (runId !== this.targetCheckRunId) return;
 
-    const unreachable = entry.status === "unreachable";
-    titleEl.createSpan({
-      cls: `plugin-share-linker-target-chip plugin-share-linker-target-${unreachable ? "unreachable" : "broken"}`,
-      text: unreachable ? t("targetState.unreachable") : t("targetState.broken"),
-    });
-
-    const hasSource = this.hasSameNameSource(entry.kind, entry.name);
-    if (!unreachable && !hasSource) {
-      titleEl.createSpan({ cls: "plugin-share-linker-target-chip is-orphan", text: t("healthNoSource") });
-    }
-
-    const targetPath = entry.absoluteTarget || entry.linkTarget;
-    if (targetPath) {
-      mainEl.createDiv("plugin-share-linker-target-path").createEl("code", { text: t("healthPointsTo", targetPath) });
-    }
-
-    const actionsEl = rowEl.createDiv("plugin-share-linker-health-actions");
-    if (unreachable) {
-      const root = entry.absoluteTarget ? path.parse(entry.absoluteTarget).root || entry.absoluteTarget : "?";
-      actionsEl.createDiv("plugin-share-linker-health-hint").setText(t("healthUnreachableHint", root));
-      return;
-    }
-
-    if (hasSource) {
-      this.createHealthButton(actionsEl, t("healthRebuild"), t("healthRebuildTitle"), () => this.rebuildSingle(entry));
-    }
-    this.createHealthButton(
-      actionsEl,
-      t("healthDelete"),
-      t("healthDeleteTitle"),
-      () => this.deleteSingle(entry),
-      true
+    this.targetCheckBusy = false;
+    this.plugin.debug(
+      "targetCheck",
+      `done links=${this.targetScanError ? "error" : "ok"} settings=${this.settingsCheckError ? "error" : "ok"} elapsed=${
+        Date.now() - checkStartedAt
+      }ms`
     );
-  }
 
-  createHealthButton(containerEl, label, title, onClick, isDanger) {
-    const buttonEl = containerEl.createEl("button", {
-      cls: `plugin-share-linker-health-button${isDanger ? " is-danger" : ""}`,
-      text: label,
-    });
-    if (title) buttonEl.title = title;
-    if (title) buttonEl.setAttribute("aria-label", label);
-    buttonEl.addEventListener("click", onClick);
-    return buttonEl;
+    if (this.targetScanError || this.settingsCheckError) {
+      new Notice(this.targetCheckStatusText());
+    } else if (this.targetInventory) {
+      const summary = this.targetInventory.summary;
+      new Notice(
+        summary.broken + summary.unreachable > 0
+          ? t("targetCheckNoticeFound", summary.broken, summary.unreachable)
+          : t("targetCheckNoticeClear")
+      );
+    }
+
+    this.renderAllResourceLists();
+    this.renderSettings();
+    this.renderTargetCheck();
   }
 
   async rebuildSingle(entry) {
     const t = this.plugin.t.bind(this.plugin);
-    this.plugin.debug("health", `rebuild ${entry.kind}/${entry.name}`);
+    this.plugin.debug("targetCheck", `rebuild ${entry.kind}/${entry.name}`);
     try {
       const outcome = await this.plugin.rebuildTargetLink(
         entry.kind,
@@ -1936,30 +2723,27 @@ class PluginShareLinkerSettingTab extends PluginSettingTab {
         this.plugin.settings.targetVaultPath
       );
       if (!outcome || outcome.status !== "rebuilt") {
-        const message = (outcome && outcome.message) || t("healthRebuildNotRestored");
-        new Notice(`${message}${outcome && outcome.restored ? ` ${t("healthRebuildRestored")}` : ""}`);
-        this.healthError = message;
+        const message = (outcome && outcome.message) || t("targetCheckRebuildNotRestored");
+        new Notice(`${message}${outcome && outcome.restored ? ` ${t("targetCheckRebuildRestored")}` : ""}`);
       } else {
         new Notice(outcome.message);
-        this.markEntryHealthy(entry);
+        this.markEntryRepaired(entry);
         entry.rebuiltFrom = outcome.oldTarget;
         entry.linkTarget = outcome.newTarget;
         entry.absoluteTarget = outcome.newTarget;
         entry.isLink = true;
-        this.healthError = "";
       }
     } catch (error) {
       const message = error && error.message ? error.message : String(error);
-      new Notice(t("healthRebuildFailed", entry.name, message));
-      this.healthError = message;
+      new Notice(t("targetCheckRebuildFailed", entry.name, message));
     }
     this.renderAllResourceLists();
-    this.renderLinkHealth();
+    this.renderTargetCheck();
   }
 
   async deleteSingle(entry) {
     const t = this.plugin.t.bind(this.plugin);
-    this.plugin.debug("health", `delete ${entry.kind}/${entry.name}`);
+    this.plugin.debug("targetCheck", `delete ${entry.kind}/${entry.name}`);
     try {
       const outcome = await this.plugin.deleteTargetLink(
         entry.kind,
@@ -1969,35 +2753,33 @@ class PluginShareLinkerSettingTab extends PluginSettingTab {
       const configText = this.describeConfigCleanup(outcome.config);
       new Notice(
         configText
-          ? t("healthDeletedWithConfig", entry.name, configText)
-          : t("healthDeleted", entry.name)
+          ? t("targetCheckDeletedWithConfig", entry.name, configText)
+          : t("targetCheckDeleted", entry.name)
       );
       this.removeInventoryEntry(entry);
-      this.healthError = "";
     } catch (error) {
       const message = error && error.message ? error.message : String(error);
-      new Notice(t("healthDeleteFailed", message));
-      this.healthError = message;
+      new Notice(t("targetCheckDeleteFailed", message));
     }
     this.renderAllResourceLists();
-    this.renderLinkHealth();
+    this.renderTargetCheck();
   }
 
   describeConfigCleanup(config) {
     const t = this.plugin.t.bind(this.plugin);
     if (!config) return "";
-    if (config.error) return t("healthConfigFailed", config.error);
+    if (config.error) return t("targetCheckConfigFailed", config.error);
     const parts = [];
     if (config.pluginsRemoved && config.pluginsRemoved.length > 0) {
-      parts.push(t("healthConfigRemovedPlugins", config.pluginsRemoved.length));
+      parts.push(t("targetCheckConfigRemovedPlugins", config.pluginsRemoved.length));
     }
     if (config.snippetsRemoved && config.snippetsRemoved.length > 0) {
-      parts.push(t("healthConfigRemovedSnippets", config.snippetsRemoved.length));
+      parts.push(t("targetCheckConfigRemovedSnippets", config.snippetsRemoved.length));
     }
     if (config.themeCleared) {
-      parts.push(t("healthConfigClearedTheme", config.themeCleared));
+      parts.push(t("targetCheckConfigClearedTheme", config.themeCleared));
     }
-    return parts.length > 0 ? t("healthConfigJoined", parts) : t("healthConfigUnchanged");
+    return parts.length > 0 ? t("targetCheckConfigJoined", parts) : t("targetCheckConfigUnchanged");
   }
 
   removeInventoryEntry(entry) {
@@ -2015,7 +2797,7 @@ class PluginShareLinkerSettingTab extends PluginSettingTab {
     }
   }
 
-  markEntryHealthy(entry) {
+  markEntryRepaired(entry) {
     if (!this.targetInventory || !this.targetInventory.summary) return;
     const summary = this.targetInventory.summary;
     if (entry.status === "broken") summary.broken = Math.max(0, (summary.broken || 0) - 1);
@@ -2031,11 +2813,11 @@ class PluginShareLinkerSettingTab extends PluginSettingTab {
       return `${entry.name}: ${entry.absoluteTarget || "-"} → ${source || "?"}`;
     });
     new TargetActionConfirmModal(this.app, {
-      title: t("healthBulkConfirmRebuild"),
-      warning: t("healthConfirmRebuildWarning"),
+      title: t("targetCheckBulkConfirmRebuild"),
+      warning: t("targetCheckConfirmRebuildWarning"),
       lines,
-      confirmLabel: t("healthConfirmOk"),
-      cancelLabel: t("healthConfirmCancel"),
+      confirmLabel: t("targetCheckConfirmOk"),
+      cancelLabel: t("targetCheckConfirmCancel"),
       onConfirm: () => this.runBulkRebuild(entries),
     }).open();
   }
@@ -2044,11 +2826,11 @@ class PluginShareLinkerSettingTab extends PluginSettingTab {
     const t = this.plugin.t.bind(this.plugin);
     const lines = entries.map((entry) => `${entry.name}: ${entry.absoluteTarget || entry.linkTarget || "-"}`);
     new TargetActionConfirmModal(this.app, {
-      title: t("healthBulkConfirmDelete"),
-      warning: t("healthConfirmDeleteWarning"),
+      title: t("targetCheckBulkConfirmDelete"),
+      warning: t("targetCheckConfirmDeleteWarning"),
       lines,
-      confirmLabel: t("healthConfirmOk"),
-      cancelLabel: t("healthConfirmCancel"),
+      confirmLabel: t("targetCheckConfirmOk"),
+      cancelLabel: t("targetCheckConfirmCancel"),
       onConfirm: () => this.runBulkDelete(entries),
     }).open();
   }
@@ -2078,7 +2860,7 @@ class PluginShareLinkerSettingTab extends PluginSettingTab {
           this.plugin.settings.targetVaultPath
         );
         if (outcome && outcome.status === "rebuilt") {
-          this.markEntryHealthy(entry);
+          this.markEntryRepaired(entry);
           entry.rebuiltFrom = outcome.oldTarget;
           entry.linkTarget = outcome.newTarget;
           entry.absoluteTarget = outcome.newTarget;
@@ -2088,12 +2870,12 @@ class PluginShareLinkerSettingTab extends PluginSettingTab {
         }
       } catch (error) {
         failed += 1;
-        this.plugin.debug("health", `bulk rebuild failed ${entry.name}: ${error && error.message}`);
+        this.plugin.debug("targetCheck", `bulk rebuild failed ${entry.name}: ${error && error.message}`);
       }
     }
-    new Notice(t("healthBulkRebuildDone", ok, failed));
+    new Notice(t("targetCheckBulkRebuildDone", ok, failed));
     this.renderAllResourceLists();
-    this.renderLinkHealth();
+    this.renderTargetCheck();
   }
 
   async runBulkDelete(entries) {
@@ -2107,12 +2889,12 @@ class PluginShareLinkerSettingTab extends PluginSettingTab {
         ok += 1;
       } catch (error) {
         failed += 1;
-        this.plugin.debug("health", `bulk delete failed ${entry.name}: ${error && error.message}`);
+        this.plugin.debug("targetCheck", `bulk delete failed ${entry.name}: ${error && error.message}`);
       }
     }
-    new Notice(t("healthBulkDeleteDone", ok, failed));
+    new Notice(t("targetCheckBulkDeleteDone", ok, failed));
     this.renderAllResourceLists();
-    this.renderLinkHealth();
+    this.renderTargetCheck();
   }
 
   async openVaultPicker() {
@@ -2152,13 +2934,40 @@ class PluginShareLinkerSettingTab extends PluginSettingTab {
     }
   }
 
-  invalidateTargetInventory() {
-    if (!this.targetInventory && !this.healthError && !this.healthMessage) return;
+  invalidateLinkResults() {
+    this.targetScanToken += 1;
     this.targetInventory = null;
-    this.healthError = "";
-    this.healthMessage = "";
+    this.targetScanAt = 0;
+    this.targetScanError = "";
     this.renderAllResourceLists();
-    this.renderLinkHealth();
+    this.renderTargetCheck();
+  }
+
+  invalidateSettingsResults() {
+    this.settingsCheckToken += 1;
+    this.settingStatuses = null;
+    this.settingsCheckAt = 0;
+    this.settingsCheckError = "";
+    this.renderSettings();
+    this.renderTargetCheck();
+  }
+
+  invalidateAllResults() {
+    this.targetScanToken += 1;
+    this.settingsCheckToken += 1;
+    this.targetCheckRunId += 1;
+    this.targetCheckBusy = false;
+    this.targetInventory = null;
+    this.targetScanAt = 0;
+    this.targetScanError = "";
+    this.settingStatuses = null;
+    this.settingsCheckAt = 0;
+    this.settingsCheckError = "";
+    this.settingResults = null;
+    this.renderAllResourceLists();
+    this.renderSettings();
+    this.renderSettingsResults();
+    this.renderTargetCheck();
   }
 
   async applyTargetVaultPath(vaultPath) {
@@ -2167,7 +2976,7 @@ class PluginShareLinkerSettingTab extends PluginSettingTab {
     if (!normalized) return;
     this.plugin.settings.targetVaultPath = normalized;
     await this.plugin.saveSettings();
-    this.invalidateTargetInventory();
+    this.invalidateAllResults();
     new Notice(t("pickerSelected", normalized));
     this.display();
   }
@@ -2177,6 +2986,7 @@ class PluginShareLinkerSettingTab extends PluginSettingTab {
 
     this.busy = true;
     this.plugin.beginDebugSession(`action ${kind}/${mode}`);
+    this.renderTargetCheck();
     const t = this.plugin.t.bind(this.plugin);
     const targetVaultPath = this.plugin.settings.targetVaultPath;
     this.plugin.debug("action", `start ${kind}/${mode} target=${targetVaultPath || "(empty)"}`);
@@ -2203,11 +3013,8 @@ class PluginShareLinkerSettingTab extends PluginSettingTab {
       this.recordOutcome(kind, mode, outcome);
       this.renderResults();
 
-      // The target vault changed, so any earlier health scan is out of date.
-      this.targetInventory = null;
-      this.healthError = "";
-      this.renderAllResourceLists();
-      this.renderLinkHealth();
+      // Only the link results are out of date: the settings comparison is unaffected.
+      this.invalidateLinkResults();
 
       const createdCount = outcome.results.filter((result) => result.status === "created").length;
       new Notice(isCopyMode ? t("copyNotice", createdCount) : t("linkNotice", createdCount));
@@ -2223,6 +3030,7 @@ class PluginShareLinkerSettingTab extends PluginSettingTab {
     } finally {
       this.busy = false;
       clearInterval(ticker);
+      this.renderTargetCheck();
     }
   }
 
@@ -2468,6 +3276,52 @@ class TargetActionConfirmModal extends Modal {
   }
 }
 
+class SettingsConfirmModal extends Modal {
+  constructor(app, options) {
+    super(app);
+    this.options = options || {};
+  }
+
+  onOpen() {
+    const opts = this.options;
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass("plugin-share-linker-confirm-modal");
+    contentEl.createEl("h3", { text: opts.title || "" });
+    if (opts.hint) contentEl.createDiv("plugin-share-linker-hint").setText(opts.hint);
+
+    const listEl = contentEl.createEl("ul", { cls: "plugin-share-linker-confirm-list" });
+    for (const file of opts.files || []) {
+      const itemEl = listEl.createEl("li", { cls: "plugin-share-linker-settings-confirm-file" });
+      itemEl.createSpan({ text: file.summary });
+      if (file.details) itemEl.createDiv("plugin-share-linker-settings-keys").setText(file.details);
+    }
+
+    if (opts.coreEnabled) contentEl.createDiv("plugin-share-linker-result-line").setText(opts.coreEnabled);
+    if (opts.coreDisabled) contentEl.createDiv("plugin-share-linker-result-line").setText(opts.coreDisabled);
+    for (const warning of opts.warnings || []) {
+      contentEl.createDiv("plugin-share-linker-config-line").setText(warning);
+    }
+    for (const conflict of opts.conflicts || []) {
+      contentEl.createDiv("plugin-share-linker-warning").setText(conflict);
+    }
+    if (opts.vaultWarning) contentEl.createDiv("plugin-share-linker-warning").setText(opts.vaultWarning);
+
+    const footerEl = contentEl.createDiv("plugin-share-linker-vault-footer");
+    const confirmButton = footerEl.createEl("button", { cls: "mod-cta", text: opts.confirmLabel || "" });
+    confirmButton.addEventListener("click", () => {
+      this.close();
+      if (typeof opts.onConfirm === "function") opts.onConfirm();
+    });
+    const cancelButton = footerEl.createEl("button", { text: opts.cancelLabel || "" });
+    cancelButton.addEventListener("click", () => this.close());
+  }
+
+  onClose() {
+    this.contentEl.empty();
+  }
+}
+
 module.exports.__test = {
   mergeDiffRows,
   describeTargetRow,
@@ -2477,8 +3331,18 @@ module.exports.__test = {
   scanTargetConfigDirs,
   rebuildLink,
   cleanEnabledRecords,
+  filterSettingValue,
+  formatSettingValue,
+  diffSettingValues,
+  findHotkeyConflicts,
+  summarizeCorePluginChanges,
+  scanTargetSettings,
+  buildSettingsSharePlan,
+  applySettingsSharePlan,
   TargetVaultPickerModal,
   TargetActionConfirmModal,
+  SettingsConfirmModal,
+  SETTING_FILES,
   TEXT,
 };
 
@@ -2676,7 +3540,7 @@ async function rebuildLink(entryPath, sourcePath, linkType, t, debug) {
       oldTarget: null,
       newTarget: sourcePath,
       restored: false,
-      message: t("healthNotLink", entryPath),
+      message: t("targetCheckNotLink", entryPath),
     };
   }
 
@@ -2689,7 +3553,7 @@ async function rebuildLink(entryPath, sourcePath, linkType, t, debug) {
       oldTarget,
       newTarget: sourcePath,
       restored: true,
-      message: t("healthDeleteFailed", error.message),
+      message: t("targetCheckDeleteFailed", error.message),
     };
   }
 
@@ -2704,7 +3568,7 @@ async function rebuildLink(entryPath, sourcePath, linkType, t, debug) {
       oldTarget,
       newTarget: sourcePath,
       restored: false,
-      message: t("healthRebuilt", path.basename(entryPath), oldTarget || "?", sourcePath),
+      message: t("targetCheckRebuilt", path.basename(entryPath), oldTarget || "?", sourcePath),
     };
   } catch (error) {
     let restored = false;
@@ -2713,7 +3577,7 @@ async function rebuildLink(entryPath, sourcePath, linkType, t, debug) {
         await fs.promises.symlink(oldTarget, entryPath, linkType);
         restored = true;
       } catch (restoreError) {
-        log("health", `restore failed ${entryPath}: ${restoreError && restoreError.message}`);
+        log("targetCheck", `restore failed ${entryPath}: ${restoreError && restoreError.message}`);
       }
     }
     return {
@@ -2721,7 +3585,7 @@ async function rebuildLink(entryPath, sourcePath, linkType, t, debug) {
       oldTarget,
       newTarget: sourcePath,
       restored,
-      message: t("healthRebuildFailed", path.basename(entryPath), error.message),
+      message: t("targetCheckRebuildFailed", path.basename(entryPath), error.message),
     };
   }
 }
@@ -2752,7 +3616,7 @@ async function cleanEnabledRecords(configDir, removed, t, debug) {
       if (existed) result.backups.push(await backupFile(filePath));
       await writeJsonFile(filePath, next);
       result.pluginsRemoved = removedIds;
-      log("health", `community cleaned ${removedIds.length}`);
+      log("targetCheck", `community cleaned ${removedIds.length}`);
     }
   }
 
@@ -2787,7 +3651,7 @@ async function cleanEnabledRecords(configDir, removed, t, debug) {
   if (appearanceChanged) {
     if (appearanceRead.existed) result.backups.push(await backupFile(appearancePath));
     await writeJsonFile(appearancePath, appearance);
-    log("health", `appearance cleaned snippets=${result.snippetsRemoved.length} theme=${result.themeCleared || "-"}`);
+    log("targetCheck", `appearance cleaned snippets=${result.snippetsRemoved.length} theme=${result.themeCleared || "-"}`);
   }
 
   return result;
@@ -2973,6 +3837,272 @@ async function writeAppearanceConfig(configDir, options, t, debug) {
   log("config", "appearance write done");
 
   return result;
+}
+
+function filterSettingValue(fileId, value) {
+  const source = isPlainObject(value) ? value : {};
+  const excluded = SETTING_FILE_KEY_EXCLUSIONS[fileId];
+  if (!excluded) return Object.assign({}, source);
+
+  const filtered = {};
+  for (const key of Object.keys(source)) {
+    if (excluded.includes(key)) continue;
+    filtered[key] = source[key];
+  }
+  return filtered;
+}
+
+function formatSettingValue(value) {
+  if (value === undefined) return "—";
+  let text;
+  try {
+    text = JSON.stringify(value);
+  } catch (error) {
+    text = String(value);
+  }
+  if (text === undefined) text = String(value);
+  return text.length > 60 ? `${text.slice(0, 57)}…` : text;
+}
+
+function stableStringify(value) {  if (Array.isArray(value)) return `[${value.map((item) => stableStringify(item)).join(",")}]`;
+  if (isPlainObject(value)) {
+    const keys = Object.keys(value).sort();
+    return `{${keys.map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function diffSettingValues(sourceValue, targetValue) {
+  const source = isPlainObject(sourceValue) ? sourceValue : {};
+  const target = isPlainObject(targetValue) ? targetValue : {};
+  const changed = [];
+  const added = [];
+  const removed = [];
+
+  for (const key of Object.keys(source)) {
+    if (!Object.prototype.hasOwnProperty.call(target, key)) added.push(key);
+    else if (stableStringify(source[key]) !== stableStringify(target[key])) changed.push(key);
+  }
+  for (const key of Object.keys(target)) {
+    if (!Object.prototype.hasOwnProperty.call(source, key)) removed.push(key);
+  }
+
+  return { changed, added, removed };
+}
+
+function normalizeHotkeyCombo(hotkey) {
+  if (!isPlainObject(hotkey)) return "";
+  const modifiers = Array.isArray(hotkey.modifiers)
+    ? hotkey.modifiers.filter((modifier) => typeof modifier === "string").map((modifier) => modifier.toLowerCase())
+    : [];
+  const key = typeof hotkey.key === "string" ? hotkey.key : "";
+  if (!key) return "";
+  return [...modifiers.sort(), key.toLowerCase()].join("+");
+}
+
+function normalizeHotkeyMap(hotkeys) {
+  const map = new Map();
+  if (!isPlainObject(hotkeys)) return map;
+
+  for (const commandId of Object.keys(hotkeys)) {
+    const entries = Array.isArray(hotkeys[commandId]) ? hotkeys[commandId] : [];
+    for (const hotkey of entries) {
+      const combo = normalizeHotkeyCombo(hotkey);
+      if (!combo) continue;
+      if (!map.has(combo)) map.set(combo, new Set());
+      map.get(combo).add(commandId);
+    }
+  }
+
+  return map;
+}
+
+function findHotkeyConflicts(sourceHotkeys, targetHotkeys) {
+  const sourceMap = normalizeHotkeyMap(sourceHotkeys);
+  const targetMap = normalizeHotkeyMap(targetHotkeys);
+  const conflicts = [];
+
+  for (const [combo, sourceCommands] of sourceMap) {
+    const targetCommands = targetMap.get(combo) || new Set();
+    for (const sourceCommand of sourceCommands) {
+      for (const targetCommand of targetCommands) {
+        if (targetCommand === sourceCommand) continue;
+        conflicts.push({ combo, sourceCommand, targetCommand, internal: false });
+      }
+    }
+    if (sourceCommands.size > 1) {
+      const [first, second] = Array.from(sourceCommands);
+      conflicts.push({ combo, sourceCommand: first, targetCommand: second, internal: true });
+    }
+  }
+
+  const seen = new Set();
+  return conflicts.filter((conflict) => {
+    const key = `${conflict.combo}|${conflict.sourceCommand}|${conflict.targetCommand}|${conflict.internal}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function summarizeCorePluginChanges(coreSource, coreTarget) {
+  const source = isPlainObject(coreSource) ? coreSource : {};
+  const target = isPlainObject(coreTarget) ? coreTarget : {};
+  const enabled = [];
+  const disabled = [];
+
+  for (const id of Object.keys(source)) {
+    if (source[id] === true && target[id] !== true) enabled.push(id);
+    if (source[id] === false && target[id] === true) disabled.push(id);
+  }
+
+  return { enabled, disabled };
+}
+
+async function scanTargetSettings(configDir, sourceRows) {
+  const statuses = {};
+
+  for (const row of sourceRows) {
+    const read = await readJsonFile(path.join(configDir, row.fileName), {});
+    const targetValue = isPlainObject(read.value) ? read.value : {};
+    const sourceValue = filterSettingValue(row.id, row.value);
+    const diff = diffSettingValues(sourceValue, targetValue);
+    const touched = diff.changed.length + diff.added.length;
+    const excluded = SETTING_FILE_KEY_EXCLUSIONS[row.id] || [];
+    statuses[row.id] = {
+      state: !read.existed ? "missing" : touched === 0 ? "same" : "diff",
+      count: touched,
+      parseError: read.parseError || null,
+      changed: diff.changed.map((key) => ({ key, from: targetValue[key], to: sourceValue[key] })),
+      added: diff.added.map((key) => ({ key, to: sourceValue[key] })),
+      removed: diff.removed.filter((key) => !excluded.includes(key)),
+    };
+  }
+
+  return statuses;
+}
+
+async function buildSettingsSharePlan(configDir, sourceRows) {
+  const files = [];
+  const warnings = [];
+  const sourceWarnings = [];
+  const vaultBoundKeys = [];
+  const corePlugins = { enabled: [], disabled: [] };
+  let hotkeyConflicts = [];
+  let sawHotkeys = false;
+  let sawCorePlugins = false;
+
+  for (const row of sourceRows) {
+    const filePath = path.join(configDir, row.fileName);
+    const read = await readJsonFile(filePath, {});
+    const targetValue = isPlainObject(read.value) ? read.value : {};
+    if (read.parseError) warnings.push(filePath);
+    if (row.parseError) sourceWarnings.push(row.sourcePath || row.fileName);
+
+    const sourceValue = filterSettingValue(row.id, row.value);
+    const diff = diffSettingValues(sourceValue, targetValue);
+
+    files.push({
+      id: row.id,
+      fileName: row.fileName,
+      filePath,
+      existed: read.existed,
+      parseError: read.parseError,
+      sourceValue,
+      targetValue,
+      changed: diff.changed,
+      added: diff.added,
+      removed: diff.removed,
+    });
+
+    if (row.id === "hotkeys") {
+      sawHotkeys = true;
+      hotkeyConflicts = findHotkeyConflicts(sourceValue, targetValue);
+    }
+    if (row.id === "core-plugins") {
+      sawCorePlugins = true;
+      const summary = summarizeCorePluginChanges(sourceValue, targetValue);
+      corePlugins.enabled = summary.enabled;
+      corePlugins.disabled = summary.disabled;
+    }
+    if (row.id === "app") {
+      const touching = [...diff.changed, ...diff.added];
+      for (const key of touching) {
+        if (VAULT_BOUND_KEYS.includes(key) && !vaultBoundKeys.includes(key)) vaultBoundKeys.push(key);
+      }
+    }
+  }
+
+  return { files, hotkeyConflicts, corePlugins, vaultBoundKeys, warnings, sourceWarnings, sawHotkeys, sawCorePlugins };
+}
+
+async function applySettingsSharePlan(configDir, plan, t, debug) {
+  const log = typeof debug === "function" ? debug : logDebug;
+  const results = [];
+
+  for (const file of plan.files) {
+    const touched = file.changed.length + file.added.length;
+    if (touched === 0) {
+      results.push({
+        id: file.id,
+        fileName: file.fileName,
+        status: "unchanged",
+        changed: [],
+        added: [],
+        backupPath: null,
+        message: "",
+      });
+      continue;
+    }
+
+    try {
+      await fs.promises.mkdir(configDir, { recursive: true });
+      // The plan may have waited in a modal: re-read the target so keys Obsidian wrote in the
+      // meantime are kept instead of being overwritten with the stale merge.
+      const fresh = await readJsonFile(file.filePath, {});
+      const freshTarget = isPlainObject(fresh.value) ? fresh.value : {};
+      const freshDiff = diffSettingValues(file.sourceValue, freshTarget);
+      const freshTouched = freshDiff.changed.length + freshDiff.added.length;
+      if (freshTouched === 0) {
+        results.push({
+          id: file.id,
+          fileName: file.fileName,
+          status: "unchanged",
+          changed: [],
+          added: [],
+          backupPath: null,
+          message: "",
+        });
+        continue;
+      }
+      let backupPath = null;
+      if (fresh.existed) backupPath = await backupFile(file.filePath);
+      await writeJsonFile(file.filePath, Object.assign({}, freshTarget, file.sourceValue));
+      log("settings", `wrote ${file.fileName} changed=${freshDiff.changed.length} added=${freshDiff.added.length}`);
+      results.push({
+        id: file.id,
+        fileName: file.fileName,
+        status: "written",
+        changed: freshDiff.changed,
+        added: freshDiff.added,
+        backupPath,
+        message: "",
+      });
+    } catch (error) {
+      log("settings", `failed ${file.fileName}: ${error && error.message}`);
+      results.push({
+        id: file.id,
+        fileName: file.fileName,
+        status: "error",
+        changed: file.changed,
+        added: file.added,
+        backupPath: null,
+        message: (error && error.message) || String(error),
+      });
+    }
+  }
+
+  return { results };
 }
 
 async function readJsonFile(filePath, fallback) {

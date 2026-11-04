@@ -3,7 +3,7 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 
-const SUITES = ["core.test.js", "ui.test.js", "timeout.test.js"];
+const SUITES = ["core.test.js", "settings.test.js", "ui.test.js", "timeout.test.js"];
 const WORK_ROOT = path.join(os.tmpdir(), "plugin-share-linker-tests");
 
 let failed = 0;
